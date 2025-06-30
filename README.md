@@ -1,3 +1,5 @@
+<div align="center">
+
 # 📍 跟着教员走遍中国 - 毛主席足迹地图
 
 [![GitHub Stars](https://img.shields.io/github/stars/sansan0/mao-map?style=flat-square&logo=github&color=yellow)](https://github.com/sansan0/mao-map/stargazers)
@@ -8,6 +10,8 @@
 [![移动端访问](https://img.shields.io/badge/移动端-支持-4285F4?style=flat-square&logo=android&logoColor=white)](#)
 [![GitHub Pages](https://img.shields.io/badge/GitHub_Pages-在线访问-4285F4?style=flat-square&logo=github&logoColor=white)](https://sansan0.github.io/mao-map)
 
+</div>
+
 > 读万卷书，行万里路
 
 本项目通过数据可视化的力量，将毛泽东主席自 1893 年至 1976 年波澜壮阔的一生，浓缩于一张可交互的动态地图之上。让那段恢弘的历史"活"起来，清晰、生动地展现伟人在中国历史洪流中的每一个关键抉择与地理印记。
@@ -17,7 +21,7 @@
 **在线体验：[https://sansan0.github.io/mao-map/](https://sansan0.github.io/mao-map/)**
 
 <p align="center">
-  <img src="docs/images/image.png" alt="最新推送效果" width="400"/>
+  <img src="docs/images/image.png" alt="最新推送效果" />
 </p>
 
 ## 🎯 地图功能一览
