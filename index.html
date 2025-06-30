@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>毛泽东生平地理轨迹</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link rel="stylesheet" href="assets/css/style.css" />
+  </head>
+  <body>
+    <div id="container">
+      <!-- 地图容器 -->
+      <div id="map" class="panel-visible"></div>
+
+      <!-- 悬停检测区域（PC端） -->
+      <div id="stats-hover-area"></div>
+
+      <!-- 统计面板（PC端） -->
+      <div id="stats-panel">
+        <h4 style="margin-bottom: 12px; color: #2c3e50">轨迹统计</h4>
+        <div class="stats-item">
+          <span class="stats-label">总事件数:</span>
+          <span class="stats-value" id="total-events">-</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label">移动次数:</span>
+          <span class="stats-value" id="movement-count">-</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label">访问省市:</span>
+          <span class="stats-value" id="visited-places">-</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label">国际移动:</span>
+          <span class="stats-value" id="international-count">-</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-label">时间跨度:</span>
+          <span class="stats-value" id="time-span">-</span>
+        </div>
+
+        <!-- 动画设置 -->
+        <div class="animation-settings">
+          <h5 style="color: #2c3e50; margin-bottom: 8px; font-size: 12px">
+            动画设置
+          </h5>
+          <div class="animation-control">
+            <label>路径速度:</label>
+            <input
+              type="range"
+              id="path-duration"
+              min="200"
+              max="5000"
+              value="2000"
+              step="100"
+            />
+            <span class="value-display" id="path-duration-display">2.0s</span>
+          </div>
+          <div class="animation-control">
+            <label>时间轴速度:</label>
+            <input
+              type="range"
+              id="timeline-duration"
+              min="100"
+              max="1000"
+              value="300"
+              step="50"
+            />
+            <span class="value-display" id="timeline-duration-display"
+              >0.3s</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- 控制面板切换按钮（移动端） -->
+      <button
+        id="toggle-panel-btn"
+        class="toggle-panel-btn"
+        title="切换控制面板"
+      >
+        ⚙
+      </button>
+
+      <!-- 反馈按钮 -->
+      <button id="feedback-btn" class="feedback-btn" title="意见反馈">
+        💬
+      </button>
+
+      <!-- 时间轴控制 -->
+      <div id="timeline-control">
+        <!-- 当前事件信息（移动端） -->
+        <div class="current-event-section">
+          <div class="event-info-row">
+            <div class="event-date-mobile" id="event-date-mobile">
+              加载中...
+            </div>
+            <div class="event-location-mobile" id="event-location-mobile">
+              加载中...
+            </div>
+          </div>
+          <div class="event-info-row">
+            <div class="event-title-mobile" id="event-title-mobile">
+              加载中...
+            </div>
+          </div>
+          <div class="progress-info-mobile">
+            <div class="info-item">
+              <span class="info-label">事件:</span>
+              <span class="info-value">
+                <span id="current-event-index-mobile">1</span>/<span
+                  id="total-event-count-mobile"
+                  >-</span
+                >
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">年龄:</span>
+              <span class="info-value">
+                <span id="current-age-mobile">0</span
+                ><span class="info-unit">岁</span>
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">进度:</span>
+              <span class="info-value" id="current-progress-mobile">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-info">
+          <div class="time-point start">
+            <span class="label">开始</span>
+            <span class="value">1893-12-26</span>
+          </div>
+
+          <!-- 当前事件详情区域（PC端） -->
+          <div class="current-event-details">
+            <div class="event-date" id="event-date">加载中...</div>
+            <div class="event-title" id="event-title">加载中...</div>
+            <div class="event-location" id="event-location">加载中...</div>
+          </div>
+
+          <div class="time-point end">
+            <span class="label">结束</span>
+            <span class="value">1976-09-09</span>
+          </div>
+        </div>
+
+        <div class="player-controls">
+          <div class="player-controls-row">
+            <!-- 播放控制按钮 -->
+            <div class="player-buttons">
+              <button class="player-btn" id="prev-btn" title="上一个事件">
+                ⏮
+              </button>
+              <button class="player-btn" id="play-btn" title="播放">▶</button>
+              <button class="player-btn" id="next-btn" title="下一个事件">
+                ⏭
+              </button>
+            </div>
+
+            <!-- 速度控制（移动端） -->
+            <div class="speed-control">
+              <button class="speed-btn" data-speed="500">快</button>
+              <button class="speed-btn active" data-speed="1000">中</button>
+              <button class="speed-btn" data-speed="2000">慢</button>
+            </div>
+          </div>
+
+          <!-- 进度条区域 -->
+          <div class="progress-section">
+            <div class="progress-container">
+              <input
+                type="range"
+                id="timeline-slider"
+                min="0"
+                max="100"
+                value="0"
+                tabindex="0"
+                title="使用左右方向键或拖拽控制时间轴"
+              />
+            </div>
+            <div class="progress-details">
+              <span class="progress-item"
+                >事件: <span id="current-event-index-desktop">1</span>/<span
+                  id="total-event-count-desktop"
+                  >-</span
+                ></span
+              >
+              <span class="progress-item"
+                >年龄: <span id="current-age-desktop">0</span>岁</span
+              >
+              <span class="progress-item"
+                >进度: <span id="current-progress-desktop">0%</span></span
+              >
+            </div>
+          </div>
+
+          <!-- 速度控制（PC端） -->
+          <div class="player-speed">
+            <label class="speed-label">播放速度:</label>
+            <div class="custom-select-wrapper">
+              <div
+                class="custom-select"
+                id="custom-speed-select"
+                data-value="1000"
+              >
+                <div class="select-display">
+                  <span class="select-text">正常</span>
+                  <span class="select-arrow">▼</span>
+                </div>
+                <div class="select-dropdown">
+                  <div class="select-option" data-value="500">很快</div>
+                  <div class="select-option selected" data-value="1000">
+                    正常
+                  </div>
+                  <div class="select-option" data-value="2000">较慢</div>
+                  <div class="select-option" data-value="3000">很慢</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 反馈弹窗背景遮罩 -->
+      <div id="feedback-backdrop" class="feedback-backdrop"></div>
+
+      <!-- 反馈弹窗 -->
+      <div id="feedback-modal" class="feedback-modal">
+        <div class="feedback-modal-header">
+          <h3>💬 意见反馈</h3>
+          <button
+            class="feedback-modal-close"
+            id="feedback-modal-close"
+            title="关闭"
+          >
+            ×
+          </button>
+        </div>
+        <div class="feedback-modal-content">
+          <div class="feedback-item" id="feedback-issues">
+            <div class="feedback-icon">🛠️</div>
+            <div class="feedback-info">
+              <div class="feedback-title">问题反馈</div>
+              <div class="feedback-desc">发现bug或建议改进</div>
+            </div>
+            <div class="feedback-arrow">→</div>
+          </div>
+
+          <div class="feedback-item" id="feedback-project">
+            <div class="feedback-icon">⭐</div>
+            <div class="feedback-info">
+              <div class="feedback-title">项目主页</div>
+              <div class="feedback-desc">查看源码和文档</div>
+            </div>
+            <div class="feedback-arrow">→</div>
+          </div>
+
+          <div class="feedback-item" id="feedback-wechat">
+            <div class="feedback-icon">📱</div>
+            <div class="feedback-info">
+              <div class="feedback-title">关注公众号</div>
+              <div class="feedback-desc">硅基茶水间 - 交流讨论</div>
+            </div>
+            <div class="feedback-arrow">→</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 详细信息面板背景遮罩 -->
+      <div id="panel-backdrop" class="panel-backdrop"></div>
+
+      <!-- 详细信息面板 -->
+      <div id="location-detail-panel" class="location-detail-panel">
+        <div class="panel-header">
+          <div class="panel-drag-handle"></div>
+          <h3 id="panel-location-title">地点详情</h3>
+          <div class="visit-summary" id="panel-visit-summary">
+            截止当前时间点共访问 <span class="visit-count-highlight">0</span> 次
+          </div>
+          <button class="panel-close" id="panel-close-btn" title="关闭">
+            ×
+          </button>
+        </div>
+        <div class="panel-content" id="panel-content">
+          <!-- 事件列表 -->
+        </div>
+      </div>
+
+      <!-- 加载提示 -->
+      <div id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载轨迹数据...</div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>
