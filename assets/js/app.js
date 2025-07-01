@@ -549,39 +549,39 @@ function showDetailPanel(locationGroup) {
   titleEl.textContent = `📍 ${location}`;
 
   let summaryText = `截止当前时间点共 <span class="visit-count-highlight">${visitCount}</span> 次相关记录`;
-  
+
   let descParts = [];
   if (birthCount > 0) descParts.push(`${birthCount}次出生`);
   if (destCount > 0) descParts.push(`${destCount}次到达`);
   if (startCount > 0) descParts.push(`${startCount}次出发`);
   if (transitCount > 0) descParts.push(`${transitCount}次途径`);
   if (activityCount > 0) descParts.push(`${activityCount}次活动`);
-  
+
   if (descParts.length > 0) {
     summaryText += ` (${descParts.join("，")})`;
   }
-  
+
   summaryEl.innerHTML = summaryText;
 
   // 按时间顺序排序
   const sortedEvents = [...events].sort((a, b) => a.index - b.index);
-  
+
   const eventListHtml = sortedEvents
     .map((event, index) => {
       const isCurrentEvent = event.index === currentEventIndex;
       const itemClass = isCurrentEvent
         ? "event-item current-event"
         : "event-item";
-      
+
       let visitTypeClass = "";
       let visitTypeLabel = "";
       let visitOrderClass = "";
-      
+
       // 左侧显示按时间顺序的次数
       const orderNumber = `第${index + 1}次`;
-      
+
       // 右侧显示事件类型
-      switch(event.visitType) {
+      switch (event.visitType) {
         case "出生":
           visitTypeClass = "birth-event";
           visitTypeLabel = "出生";
@@ -615,7 +615,9 @@ function showDetailPanel(locationGroup) {
           <span class="event-date-item">${event.date}</span>
           <span class="visit-order ${visitOrderClass}">${visitTypeLabel}</span>
         </div>
-        <div class="event-description">${event.originalEvent || event.event}</div>
+        <div class="event-description">${
+          event.originalEvent || event.event
+        }</div>
         ${event.age ? `<div class="event-age">年龄: ${event.age}岁</div>` : ""}
       </div>
     `;
@@ -687,14 +689,12 @@ function initFeedbackModal() {
     feedbackBackdrop.addEventListener("click", hideFeedbackModal);
   }
 
-  // 阻止弹窗内部点击传播
   if (feedbackModal) {
     feedbackModal.addEventListener("click", (e) => {
       e.stopPropagation();
     });
   }
 
-  // 绑定各个功能项的点击事件
   const issuesItem = document.getElementById("feedback-issues");
   const projectItem = document.getElementById("feedback-project");
   const wechatItem = document.getElementById("feedback-wechat");
@@ -783,7 +783,6 @@ function openGitHubProject() {
 function handleWeChatAction() {
   const wechatName = "硅基茶水间";
 
-  // 尝试复制到剪贴板
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard
       .writeText(wechatName)
@@ -824,7 +823,6 @@ function handleWeChatAction() {
  * 显示临时提示消息
  */
 function showTemporaryMessage(message, type = "info") {
-  // 移除现有的提示消息
   const existingMessage = document.querySelector(".temp-message");
   if (existingMessage) {
     existingMessage.remove();
@@ -834,7 +832,6 @@ function showTemporaryMessage(message, type = "info") {
   messageDiv.className = "temp-message";
   messageDiv.textContent = message;
 
-  // 根据类型设置样式
   const colors = {
     success: { bg: "rgba(39, 174, 96, 0.9)", border: "#27ae60" },
     info: { bg: "rgba(52, 152, 219, 0.9)", border: "#3498db" },
@@ -1364,11 +1361,30 @@ function createLocationMarker(
     iconAnchor: iconAnchor,
   });
 
-  const marker = L.marker([lat, lng], { icon: markerElement });
+  const marker = L.marker([lat, lng], {
+    icon: markerElement,
+    interactive: true,
+    keyboard: true,
+    zIndexOffset: 1000, // 确保标记在顶层
+  });
 
-  marker.on("click", function (e) {
+  const clickHandler = function (e) {
     e.originalEvent.stopPropagation();
     showDetailPanel(locationGroup);
+  };
+
+  marker._originalClickHandler = clickHandler;
+
+  marker.on("click", clickHandler);
+
+  marker.on("add", function () {
+    setTimeout(() => {
+      if (marker._icon) {
+        marker._icon.style.zIndex = "1000";
+        marker._icon.style.pointerEvents = "auto";
+        marker._icon.style.cursor = "pointer";
+      }
+    }, 50);
   });
 
   let tooltipText;
@@ -1479,8 +1495,11 @@ function updatePathsStatic(targetIndex) {
     const currentEvent = trajectoryData.events[i];
 
     // 只有非原地活动才绘制路径
-    if (currentEvent.movementType !== "原地活动" && 
-        currentEvent.startCoords && currentEvent.endCoords) {
+    if (
+      currentEvent.movementType !== "原地活动" &&
+      currentEvent.startCoords &&
+      currentEvent.endCoords
+    ) {
       const isLatest = i === targetIndex;
       const eventPath = createAnimatedPath(
         currentEvent.startCoords,
@@ -1541,8 +1560,11 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
     });
 
     // 只有非原地活动才绘制路径
-    if (currentEvent.movementType !== "原地活动" && 
-        currentEvent.startCoords && currentEvent.endCoords) {
+    if (
+      currentEvent.movementType !== "原地活动" &&
+      currentEvent.startCoords &&
+      currentEvent.endCoords
+    ) {
       const eventPath = createAnimatedPath(
         currentEvent.startCoords,
         currentEvent.endCoords,
@@ -1665,6 +1687,44 @@ function updateEventMarkers(targetIndex) {
       locationMarkers.set(coordKey, marker);
     }
   });
+
+  // 确保标记交互状态正确初始化
+  setTimeout(() => {
+    ensureMarkersInteractivity();
+  }, 100);
+}
+
+/**
+ * 确保标记交互性正常工作
+ */
+function ensureMarkersInteractivity() {
+  eventMarkers.forEach((marker) => {
+    if (marker._icon) {
+      const zIndex = Math.abs(parseInt(marker._icon.style.zIndex) || 0) || 1000;
+      marker._icon.style.zIndex = zIndex;
+
+      marker._icon.style.pointerEvents = "auto";
+      marker._icon.style.cursor = "pointer";
+
+      if (!marker._hasInteractivityEnsured) {
+        marker._hasInteractivityEnsured = true;
+
+        const originalOnClick = marker._originalClickHandler;
+        if (originalOnClick) {
+          marker.off("click");
+          marker.on("click", originalOnClick);
+        }
+      }
+    }
+  });
+
+  // 强制刷新地图交互状态
+  if (map && map.invalidateSize) {
+    map.invalidateSize({
+      animate: false,
+      pan: false,
+    });
+  }
 }
 
 // ==================== 动画控制 ====================
@@ -1706,7 +1766,14 @@ function showEventAtIndex(index, animated = true, isUserDrag = false) {
       animate: animated,
       duration: animated ? animationConfig.timelineDuration / 1000 : 0,
     };
+
     map.setView([lat, lng], Math.max(map.getZoom(), 6), panOptions);
+
+    if (animated) {
+      setTimeout(() => {
+        ensureMarkersInteractivity();
+      }, animationConfig.timelineDuration + 100);
+    }
   }
 }
 
@@ -2003,7 +2070,6 @@ function copyCurrentEventData() {
 
     const formattedJson = `    ${jsonString.replace(/\n/g, "\n    ")},`;
 
-    // 复制到剪贴板
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(formattedJson)
@@ -2219,7 +2285,6 @@ function initCustomSpeedSelect() {
 
   const selectDisplay = customSelect.querySelector(".select-display");
   const selectText = customSelect.querySelector(".select-text");
-  const selectArrow = customSelect.querySelector(".select-arrow");
   const selectDropdown = customSelect.querySelector(".select-dropdown");
   const selectOptions = customSelect.querySelectorAll(".select-option");
 
@@ -2234,7 +2299,6 @@ function initCustomSpeedSelect() {
     isOpen = true;
     customSelect.classList.add("open");
 
-    // 添加全局点击监听，用于关闭下拉菜单
     setTimeout(() => {
       document.addEventListener("click", handleDocumentClick);
     }, 0);
@@ -2279,26 +2343,20 @@ function initCustomSpeedSelect() {
     const value = option.dataset.value;
     const text = option.textContent;
 
-    // 更新显示文本
     selectText.textContent = text;
 
-    // 更新data-value
     customSelect.dataset.value = value;
 
-    // 更新选中状态
     selectOptions.forEach((opt) => opt.classList.remove("selected"));
     option.classList.add("selected");
 
-    // 更新播放速度
     currentPlaySpeed = parseInt(value);
 
-    // 如果正在播放，重新启动播放以应用新速度
     if (isPlaying) {
       togglePlay();
       setTimeout(() => togglePlay(), 100);
     }
 
-    // 关闭下拉菜单
     closeDropdown();
   }
 
@@ -2366,10 +2424,8 @@ function initCustomSpeedSelect() {
     options[newIndex].classList.add("selected");
   }
 
-  // 使自定义选择器可获得焦点
   customSelect.setAttribute("tabindex", "0");
 
-  // 初始化时确保正确的选中状态
   const initialValue = customSelect.dataset.value || "1000";
   const initialOption = customSelect.querySelector(
     `[data-value="${initialValue}"]`
