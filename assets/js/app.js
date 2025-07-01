@@ -1280,32 +1280,36 @@ function createLocationMarker(
 
 // ==================== 地图标记和路径 ====================
 /**
- * 创建动画路径
+ * 创建动画路径 - 支持事件内部路径和事件间连接路径
  */
 function createAnimatedPath(
   fromCoords,
   toCoords,
   transitCoords = [],
   isLatest = false,
-  eventIndex = null
+  eventIndex = null,
+  isConnectionPath = false
 ) {
   if (!fromCoords || !toCoords) return null;
 
   const pathCoords = [];
   pathCoords.push([fromCoords[1], fromCoords[0]]);
 
-  transitCoords.forEach((coords) => {
-    pathCoords.push([coords[1], coords[0]]);
-  });
+  // 只有在事件内部路径时才使用途径点
+  if (!isConnectionPath && transitCoords && transitCoords.length > 0) {
+    transitCoords.forEach((coords) => {
+      pathCoords.push([coords[1], coords[0]]);
+    });
+  }
 
   pathCoords.push([toCoords[1], toCoords[0]]);
 
   const pathOptions = {
     color: isLatest ? "#c0392b" : "#85c1e9",
-    weight: 3,
-    opacity: isLatest ? 0.9 : 0.6,
+    weight: isConnectionPath ? 2 : 3, // 连接路径稍细一些
+    opacity: isLatest ? 0.9 : isConnectionPath ? 0.4 : 0.6,
     smoothFactor: 1,
-    dashArray: "8, 8",
+    dashArray: isConnectionPath ? "4, 8" : "8, 8", // 连接路径用不同样式
   };
 
   const path = L.polyline(pathCoords, pathOptions);
@@ -1313,6 +1317,7 @@ function createAnimatedPath(
   path._isLatest = isLatest;
   path._needsAnimation = isLatest;
   path._eventIndex = eventIndex;
+  path._isConnectionPath = isConnectionPath;
 
   if (isLatest) {
     path._initiallyHidden = true;
@@ -1351,25 +1356,54 @@ function updatePathsStatic(targetIndex) {
   pathLayers.forEach((path) => map.removeLayer(path));
   pathLayers = [];
 
-  for (let i = 1; i <= targetIndex; i++) {
+  for (let i = 0; i <= targetIndex; i++) {
     const currentEvent = trajectoryData.events[i];
-    const previousEvent = trajectoryData.events[i - 1];
 
-    if (previousEvent.endCoords && currentEvent.endCoords) {
+    // 1. 绘制事件内部路径（从start到end）
+    if (currentEvent.startCoords && currentEvent.endCoords) {
       const isLatest = i === targetIndex;
-      const path = createAnimatedPath(
-        previousEvent.endCoords,
+      const eventPath = createAnimatedPath(
+        currentEvent.startCoords,
         currentEvent.endCoords,
         currentEvent.transitCoords,
         isLatest,
-        i
+        i,
+        false // 事件内部路径
       );
 
-      if (path) {
-        path._needsAnimation = false;
-        path._initiallyHidden = false;
-        path.addTo(map);
-        pathLayers.push(path);
+      if (eventPath) {
+        eventPath._needsAnimation = false;
+        eventPath._initiallyHidden = false;
+        eventPath.addTo(map);
+        pathLayers.push(eventPath);
+      }
+    }
+
+    // 2. 绘制事件间连接路径
+    if (i > 0) {
+      const previousEvent = trajectoryData.events[i - 1];
+
+      if (previousEvent.endCoords && currentEvent.startCoords) {
+        const prevEnd = previousEvent.endCoords;
+        const currStart = currentEvent.startCoords;
+
+        if (prevEnd[0] !== currStart[0] || prevEnd[1] !== currStart[1]) {
+          const connectionPath = createAnimatedPath(
+            prevEnd,
+            currStart,
+            [], // 连接路径不使用途径点
+            false, // 连接路径不标记为最新
+            i,
+            true // 标记为连接路径
+          );
+
+          if (connectionPath) {
+            connectionPath._needsAnimation = false;
+            connectionPath._initiallyHidden = false;
+            connectionPath.addTo(map);
+            pathLayers.push(connectionPath);
+          }
+        }
       }
     }
   }
@@ -1380,6 +1414,7 @@ function updatePathsStatic(targetIndex) {
  */
 function updatePathsAnimated(targetIndex, isReverse = false) {
   if (isReverse) {
+    // 反向播放：移除目标索引之后的所有路径
     const pathsToRemove = pathLayers.filter(
       (path) => path._eventIndex > targetIndex
     );
@@ -1398,42 +1433,65 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
               if (pathIndex > -1) {
                 pathLayers.splice(pathIndex, 1);
               }
-
-              if (index === pathsToRemove.length - 1) {
-                if (pathLayers.length > 0) {
-                  const newLastPath = pathLayers[pathLayers.length - 1];
-                  updatePathStyle(newLastPath, true);
-                }
-              }
             }, animationConfig.pathDuration);
           }
         }, index * 100);
       });
     }
   } else {
-    if (pathLayers.length > 0) {
-      const previousLastPath = pathLayers[pathLayers.length - 1];
-      updatePathStyle(previousLastPath, false);
-    }
-
+    // 正向播放：添加新的路径
     const currentEvent = trajectoryData.events[targetIndex];
-    const previousEvent = trajectoryData.events[targetIndex - 1];
+    const previousEvent =
+      targetIndex > 0 ? trajectoryData.events[targetIndex - 1] : null;
 
-    if (previousEvent && previousEvent.endCoords && currentEvent.endCoords) {
-      const path = createAnimatedPath(
-        previousEvent.endCoords,
-        currentEvent.endCoords,
-        currentEvent.transitCoords,
-        true,
-        targetIndex
-      );
+    pathLayers.forEach((path) => {
+      if (path._isLatest) {
+        updatePathStyle(path, false);
+      }
+    });
 
-      if (path) {
-        path.addTo(map);
-        pathLayers.push(path);
-        applyPathAnimation(path, false);
+    // 1. 先绘制事件间连接路径（如果需要）
+    if (previousEvent && previousEvent.endCoords && currentEvent.startCoords) {
+      const prevEnd = previousEvent.endCoords;
+      const currStart = currentEvent.startCoords;
+
+      if (prevEnd[0] !== currStart[0] || prevEnd[1] !== currStart[1]) {
+        const connectionPath = createAnimatedPath(
+          prevEnd,
+          currStart,
+          [],
+          false,
+          targetIndex,
+          true
+        );
+
+        if (connectionPath) {
+          connectionPath.addTo(map);
+          pathLayers.push(connectionPath);
+          applyPathAnimation(connectionPath, false);
+        }
       }
     }
+
+    // 2. 延迟绘制事件内部路径，形成连贯动画效果
+    setTimeout(() => {
+      if (currentEvent.startCoords && currentEvent.endCoords) {
+        const eventPath = createAnimatedPath(
+          currentEvent.startCoords,
+          currentEvent.endCoords,
+          currentEvent.transitCoords,
+          true,
+          targetIndex,
+          false
+        );
+
+        if (eventPath) {
+          eventPath.addTo(map);
+          pathLayers.push(eventPath);
+          applyPathAnimation(eventPath, false);
+        }
+      }
+    }, 500); // 延迟500ms，让连接路径先完成
   }
 }
 

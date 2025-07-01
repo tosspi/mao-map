@@ -1663,14 +1663,39 @@
       "verification": ""
     },
     {
+      "date": "1958-03-27",
+      "age": 64,
+      "movementType": "短途移动",
+      "event": "视察我国第一个（1955年）天然气工业气矿 -- 隆昌气矿",
+      "coordinates": {
+        "start": {
+          "country": "四川省",
+          "city": "成都市"
+        },
+        "end": {
+          "province": "四川省",
+          "city": "内江市",
+          "district": "隆昌市"
+        }
+      },
+      "verification": "http://scdfz.sc.gov.cn/whzh/slzc1/content_16893 四川党史 1995年中共四川省委党史研究室编著《毛泽东与四川》",
+      "userVerification": [
+        {
+          "username": "@troilus",
+          "comment": "项目作者评: 本项目的第一个 issue",
+          "date": "2025-07-01"
+        }
+      ]
+    },
+    {
       "date": "1958-05-05",
       "age": 64,
-      "movementType": "国际移动",
+      "movementType": "原地活动",
       "event": "中共八大二次会议，通过\"鼓足干劲、力争上游、多快好省地建设社会主义\"总路线",
       "coordinates": {
         "start": {
-          "country": "俄罗斯",
-          "city": "莫斯科"
+          "province": "北京市",
+          "city": "北京市"
         },
         "end": {
           "province": "北京市",
