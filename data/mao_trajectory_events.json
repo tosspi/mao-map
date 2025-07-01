@@ -955,27 +955,39 @@
     {
       "date": "1935-02-18",
       "age": 41,
-      "movementType": "短途移动",
-      "event": "二渡赤水（从太平渡、二郎滩重返贵州）",
+      "movementType": "长途移动",
+      "event": "二渡赤水（从扎西东进，经太平渡、二郎滩渡过赤水河，重返黔北）",
       "coordinates": {
         "start": {
-          "province": "四川省",
-          "city": "泸州市",
-          "district": "古蔺县"
+          "province": "云南省",
+          "city": "昭通市",
+          "district": "威信县"
         },
         "end": {
           "province": "贵州省",
           "city": "遵义市",
-          "district": "仁怀市"
-        }
+          "district": "桐梓县"
+        },
+        "transit": [
+          {
+            "province": "四川省",
+            "city": "泸州市",
+            "district": "古蔺县"
+          },
+          {
+            "province": "贵州省",
+            "city": "遵义市",
+            "district": "仁怀市"
+          }
+        ]
       },
-      "verification": ""
+      "verification": "根据史料：2月18日红一军团前卫第二师抵达太平渡，红三军团抵达二郎滩；2月20日全部渡过赤水河进入黔北；2月24日攻占桐梓县城"
     },
     {
       "date": "1935-03-16",
       "age": 41,
-      "movementType": "短途移动",
-      "event": "三渡赤水（从茅台渡过赤水河）",
+      "movementType": "长途移动",
+      "event": "三渡赤水（从茅台渡河进入川南，迷惑敌军制造北渡长江假象）",
       "coordinates": {
         "start": {
           "province": "贵州省",
@@ -986,15 +998,22 @@
           "province": "四川省",
           "city": "泸州市",
           "district": "古蔺县"
-        }
+        },
+        "transit": [
+          {
+            "province": "四川省",
+            "city": "泸州市",
+            "district": "古蔺县"
+          }
+        ]
       },
-      "verification": ""
+      "verification": "史料记载：3月16日红军由茅台用浮桥三渡赤水，向古蔺前进；3月19日在镇龙山与川军魏楷部接触并击溃，进入两河口地区，成功诱导蒋介石坚信红军北渡长江意图"
     },
     {
       "date": "1935-03-21",
       "age": 41,
-      "movementType": "短途移动",
-      "event": "四渡赤水（再次从二郎滩渡过赤水河）",
+      "movementType": "长途移动",
+      "event": "四渡赤水（从川南回师东渡，成功跳出国军包围圈）",
       "coordinates": {
         "start": {
           "province": "四川省",
@@ -1003,11 +1022,38 @@
         },
         "end": {
           "province": "贵州省",
-          "city": "遵义市",
-          "district": "习水县"
-        }
+          "city": "贵阳市",
+          "district": "息烽县"
+        },
+        "transit": [
+          {
+            "province": "贵州省",
+            "city": "遵义市",
+            "district": "仁怀市"
+          },
+          {
+            "province": "四川省",
+            "city": "泸州市",
+            "district": "古蔺县"
+          },
+          {
+            "province": "贵州省",
+            "city": "遵义市",
+            "district": "习水县"
+          },
+          {
+            "province": "贵州省",
+            "city": "遵义市",
+            "district": "遵义县"
+          },
+          {
+            "province": "贵州省",
+            "city": "遵义市",
+            "district": "乌当区"
+          }
+        ]
       },
-      "verification": ""
+      "verification": "史料记载：3月21日红军由二郎滩、九溪口、太平渡东渡赤水；3月24日穿越遵义、怀仁大道继续南下；3月29日夺取乌江渡口；3月30-31日南渡乌江进入息烽西北黄冈、牛场等地，成功跳出国军包围圈"
     },
     {
       "date": "1935-05-03",

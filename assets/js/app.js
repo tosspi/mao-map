@@ -542,39 +542,80 @@ function showDetailPanel(locationGroup) {
   const visitCount = events.length;
   const transitCount = events.filter((e) => e.visitType === "途径").length;
   const destCount = events.filter((e) => e.visitType === "目的地").length;
+  const startCount = events.filter((e) => e.visitType === "起点").length;
+  const activityCount = events.filter((e) => e.visitType === "活动").length;
+  const birthCount = events.filter((e) => e.visitType === "出生").length;
 
   titleEl.textContent = `📍 ${location}`;
 
-  let summaryText = `截止当前时间点共 <span class="visit-count-highlight">${visitCount}</span> 次访问`;
-  if (transitCount > 0 && destCount > 0) {
-    summaryText += ` (${destCount}次到达，${transitCount}次途径)`;
-  } else if (transitCount > 0) {
-    summaryText += ` (全部为途径)`;
-  } else {
-    summaryText += ` (全部为到达)`;
+  let summaryText = `截止当前时间点共 <span class="visit-count-highlight">${visitCount}</span> 次相关记录`;
+  
+  let descParts = [];
+  if (birthCount > 0) descParts.push(`${birthCount}次出生`);
+  if (destCount > 0) descParts.push(`${destCount}次到达`);
+  if (startCount > 0) descParts.push(`${startCount}次出发`);
+  if (transitCount > 0) descParts.push(`${transitCount}次途径`);
+  if (activityCount > 0) descParts.push(`${activityCount}次活动`);
+  
+  if (descParts.length > 0) {
+    summaryText += ` (${descParts.join("，")})`;
   }
+  
   summaryEl.innerHTML = summaryText;
 
+  // 按时间顺序排序
   const sortedEvents = [...events].sort((a, b) => a.index - b.index);
+  
   const eventListHtml = sortedEvents
     .map((event, index) => {
       const isCurrentEvent = event.index === currentEventIndex;
       const itemClass = isCurrentEvent
         ? "event-item current-event"
         : "event-item";
-      const visitTypeClass = event.visitType === "途径" ? "transit-event" : "";
+      
+      let visitTypeClass = "";
+      let visitTypeLabel = "";
+      let visitOrderClass = "";
+      
+      // 左侧显示按时间顺序的次数
+      const orderNumber = `第${index + 1}次`;
+      
+      // 右侧显示事件类型
+      switch(event.visitType) {
+        case "出生":
+          visitTypeClass = "birth-event";
+          visitTypeLabel = "出生";
+          visitOrderClass = "birth-order";
+          break;
+        case "起点":
+          visitTypeClass = "start-event";
+          visitTypeLabel = "出发";
+          visitOrderClass = "start-order";
+          break;
+        case "目的地":
+          visitTypeLabel = "到达";
+          visitOrderClass = "";
+          break;
+        case "途径":
+          visitTypeClass = "transit-event";
+          visitTypeLabel = "途径";
+          visitOrderClass = "transit-order";
+          break;
+        case "活动":
+          visitTypeClass = "activity-event";
+          visitTypeLabel = "活动";
+          visitOrderClass = "activity-order";
+          break;
+      }
 
       return `
       <div class="${itemClass} ${visitTypeClass}">
         <div class="event-header">
+          <span class="visit-order-number">${orderNumber}</span>
           <span class="event-date-item">${event.date}</span>
-          <span class="visit-order ${
-            event.visitType === "途径" ? "transit-order" : ""
-          }">${event.visitType === "途径" ? "途径" : "第"}${
-        event.visitType === "途径" ? "" : index + 1 + "次"
-      }</span>
+          <span class="visit-order ${visitOrderClass}">${visitTypeLabel}</span>
         </div>
-        <div class="event-description">${event.event}</div>
+        <div class="event-description">${event.originalEvent || event.event}</div>
         ${event.age ? `<div class="event-age">年龄: ${event.age}岁</div>` : ""}
       </div>
     `;
@@ -1075,7 +1116,7 @@ function processTrajectoryData(data) {
 // ==================== 位置聚合 ====================
 /**
  * 按地理位置聚合事件
- * 统计每个地点的事件类型，为标记颜色判断提供数据基础
+ * 统计每个地点的事件类型，包括出生、起点、终点、途径点、活动
  */
 function groupEventsByLocation(events, maxIndex) {
   const groups = new Map();
@@ -1083,75 +1124,153 @@ function groupEventsByLocation(events, maxIndex) {
   for (let i = 0; i <= maxIndex; i++) {
     const event = events[i];
 
-    // 处理目的地坐标
-    if (event.endCoords && event.endLocation) {
-      const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
+    // 特殊处理出生事件
+    if (event.movementType === "出生") {
+      if (event.endCoords && event.endLocation) {
+        const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
 
-      if (!groups.has(coordKey)) {
-        groups.set(coordKey, {
-          coordinates: event.endCoords,
-          location: event.endLocation,
-          events: [],
-          types: new Set(), // 存储该地点包含的所有movementType（手动标注的5种类型）
+        if (!groups.has(coordKey)) {
+          groups.set(coordKey, {
+            coordinates: event.endCoords,
+            location: event.endLocation,
+            events: [],
+            types: new Set(),
+          });
+        }
+
+        const group = groups.get(coordKey);
+        group.events.push({
+          ...event,
+          index: i,
+          date: event.date,
+          event: event.event,
+          age: event.age,
+          visitType: "出生",
         });
+
+        group.types.add(event.movementType);
+      }
+    }
+    // 特殊处理原地活动
+    else if (event.movementType === "原地活动") {
+      // 原地活动只记录一次，使用end坐标
+      if (event.endCoords && event.endLocation) {
+        const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
+
+        if (!groups.has(coordKey)) {
+          groups.set(coordKey, {
+            coordinates: event.endCoords,
+            location: event.endLocation,
+            events: [],
+            types: new Set(),
+          });
+        }
+
+        const group = groups.get(coordKey);
+        group.events.push({
+          ...event,
+          index: i,
+          date: event.date,
+          event: event.event,
+          age: event.age,
+          visitType: "活动",
+        });
+
+        group.types.add(event.movementType);
+      }
+    } else {
+      // 处理其他类型事件的起点坐标
+      if (event.startCoords && event.startLocation) {
+        const coordKey = `${event.startCoords[0]},${event.startCoords[1]}`;
+
+        if (!groups.has(coordKey)) {
+          groups.set(coordKey, {
+            coordinates: event.startCoords,
+            location: event.startLocation,
+            events: [],
+            types: new Set(),
+          });
+        }
+
+        const group = groups.get(coordKey);
+        group.events.push({
+          ...event,
+          index: i,
+          date: event.date,
+          event: event.event,
+          age: event.age,
+          visitType: "起点",
+        });
+
+        group.types.add(event.movementType);
       }
 
-      const group = groups.get(coordKey);
-      group.events.push({
-        ...event,
-        index: i,
-        date: event.date,
-        event: event.event,
-        age: event.age,
-        visitType: "目的地",
-      });
+      // 处理其他类型事件的目的地坐标
+      if (event.endCoords && event.endLocation) {
+        const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
 
-      // 添加事件的movementType到types集合中
-      // 这里只记录手动标注的5种类型：出生、国际移动、长途移动、短途移动、原地活动
-      group.types.add(event.movementType);
-    }
-
-    // 处理途径坐标
-    if (
-      event.transitCoords &&
-      event.transitCoords.length > 0 &&
-      event.coordinates &&
-      event.coordinates.transit
-    ) {
-      event.transitCoords.forEach((coords, transitIndex) => {
-        if (coords && event.coordinates.transit[transitIndex]) {
-          const transitInfo = event.coordinates.transit[transitIndex];
-          const transitResult = getCoordinatesWithLocation(transitInfo);
-
-          if (transitResult.coordinates && transitResult.location) {
-            const coordKey = `${coords[0]},${coords[1]}`;
-
-            if (!groups.has(coordKey)) {
-              groups.set(coordKey, {
-                coordinates: coords,
-                location: transitResult.location,
-                events: [],
-                types: new Set(), // 存储该地点包含的所有movementType
-              });
-            }
-
-            const group = groups.get(coordKey);
-            group.events.push({
-              ...event,
-              index: i,
-              date: event.date,
-              event: `途经：${event.event}`,
-              age: event.age,
-              visitType: "途径",
-              originalEvent: event.event,
-            });
-
-            // 对于途径事件，记录原始事件的movementType
-            // 确保途径地点的标记颜色基于原始事件的类型，而不是单独的"途径"类型
-            group.types.add(event.movementType);
-          }
+        if (!groups.has(coordKey)) {
+          groups.set(coordKey, {
+            coordinates: event.endCoords,
+            location: event.endLocation,
+            events: [],
+            types: new Set(),
+          });
         }
-      });
+
+        const group = groups.get(coordKey);
+        group.events.push({
+          ...event,
+          index: i,
+          date: event.date,
+          event: event.event,
+          age: event.age,
+          visitType: "目的地",
+        });
+
+        group.types.add(event.movementType);
+      }
+
+      // 处理途径坐标
+      if (
+        event.transitCoords &&
+        event.transitCoords.length > 0 &&
+        event.coordinates &&
+        event.coordinates.transit
+      ) {
+        event.transitCoords.forEach((coords, transitIndex) => {
+          if (coords && event.coordinates.transit[transitIndex]) {
+            const transitInfo = event.coordinates.transit[transitIndex];
+            const transitResult = getCoordinatesWithLocation(transitInfo);
+
+            if (transitResult.coordinates && transitResult.location) {
+              const coordKey = `${coords[0]},${coords[1]}`;
+
+              if (!groups.has(coordKey)) {
+                groups.set(coordKey, {
+                  coordinates: coords,
+                  location: transitResult.location,
+                  events: [],
+                  types: new Set(),
+                });
+              }
+
+              const group = groups.get(coordKey);
+              group.events.push({
+                ...event,
+                index: i,
+                date: event.date,
+                event: `途经：${event.event}`,
+                age: event.age,
+                visitType: "途径",
+                originalEvent: event.event,
+              });
+
+              group.types.add(event.movementType);
+            }
+          }
+        });
+      }
     }
   }
 
@@ -1359,8 +1478,9 @@ function updatePathsStatic(targetIndex) {
   for (let i = 0; i <= targetIndex; i++) {
     const currentEvent = trajectoryData.events[i];
 
-    // 1. 绘制事件内部路径（从start到end）
-    if (currentEvent.startCoords && currentEvent.endCoords) {
+    // 只有非原地活动才绘制路径
+    if (currentEvent.movementType !== "原地活动" && 
+        currentEvent.startCoords && currentEvent.endCoords) {
       const isLatest = i === targetIndex;
       const eventPath = createAnimatedPath(
         currentEvent.startCoords,
@@ -1376,34 +1496,6 @@ function updatePathsStatic(targetIndex) {
         eventPath._initiallyHidden = false;
         eventPath.addTo(map);
         pathLayers.push(eventPath);
-      }
-    }
-
-    // 2. 绘制事件间连接路径
-    if (i > 0) {
-      const previousEvent = trajectoryData.events[i - 1];
-
-      if (previousEvent.endCoords && currentEvent.startCoords) {
-        const prevEnd = previousEvent.endCoords;
-        const currStart = currentEvent.startCoords;
-
-        if (prevEnd[0] !== currStart[0] || prevEnd[1] !== currStart[1]) {
-          const connectionPath = createAnimatedPath(
-            prevEnd,
-            currStart,
-            [], // 连接路径不使用途径点
-            false, // 连接路径不标记为最新
-            i,
-            true // 标记为连接路径
-          );
-
-          if (connectionPath) {
-            connectionPath._needsAnimation = false;
-            connectionPath._initiallyHidden = false;
-            connectionPath.addTo(map);
-            pathLayers.push(connectionPath);
-          }
-        }
       }
     }
   }
@@ -1441,8 +1533,6 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
   } else {
     // 正向播放：添加新的路径
     const currentEvent = trajectoryData.events[targetIndex];
-    const previousEvent =
-      targetIndex > 0 ? trajectoryData.events[targetIndex - 1] : null;
 
     pathLayers.forEach((path) => {
       if (path._isLatest) {
@@ -1450,48 +1540,24 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
       }
     });
 
-    // 1. 先绘制事件间连接路径（如果需要）
-    if (previousEvent && previousEvent.endCoords && currentEvent.startCoords) {
-      const prevEnd = previousEvent.endCoords;
-      const currStart = currentEvent.startCoords;
+    // 只有非原地活动才绘制路径
+    if (currentEvent.movementType !== "原地活动" && 
+        currentEvent.startCoords && currentEvent.endCoords) {
+      const eventPath = createAnimatedPath(
+        currentEvent.startCoords,
+        currentEvent.endCoords,
+        currentEvent.transitCoords,
+        true,
+        targetIndex,
+        false
+      );
 
-      if (prevEnd[0] !== currStart[0] || prevEnd[1] !== currStart[1]) {
-        const connectionPath = createAnimatedPath(
-          prevEnd,
-          currStart,
-          [],
-          false,
-          targetIndex,
-          true
-        );
-
-        if (connectionPath) {
-          connectionPath.addTo(map);
-          pathLayers.push(connectionPath);
-          applyPathAnimation(connectionPath, false);
-        }
+      if (eventPath) {
+        eventPath.addTo(map);
+        pathLayers.push(eventPath);
+        applyPathAnimation(eventPath, false);
       }
     }
-
-    // 2. 延迟绘制事件内部路径，形成连贯动画效果
-    setTimeout(() => {
-      if (currentEvent.startCoords && currentEvent.endCoords) {
-        const eventPath = createAnimatedPath(
-          currentEvent.startCoords,
-          currentEvent.endCoords,
-          currentEvent.transitCoords,
-          true,
-          targetIndex,
-          false
-        );
-
-        if (eventPath) {
-          eventPath.addTo(map);
-          pathLayers.push(eventPath);
-          applyPathAnimation(eventPath, false);
-        }
-      }
-    }, 500); // 延迟500ms，让连接路径先完成
   }
 }
 
