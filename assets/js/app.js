@@ -21,10 +21,11 @@ let statsHoverTimeout = null;
 let currentPlaySpeed = 1000;
 let isPanelVisible = true;
 let isFeedbackModalVisible = false;
+let isCameraFollowEnabled = true;
 
 let animationConfig = {
-  pathDuration: 2000,
-  timelineDuration: 300,
+  pathDuration: 3000,
+  timelineDuration: 500,
   isAnimating: false,
 };
 
@@ -983,7 +984,7 @@ function buildFullLocationPath(locationInfo) {
     if (locationInfo.province) {
       parts.push(locationInfo.province);
     }
-    if (locationInfo.city && locationInfo.city !== locationInfo.province) {
+    if (locationInfo.city) {
       parts.push(locationInfo.city);
     }
     if (locationInfo.district && locationInfo.district !== locationInfo.city) {
@@ -991,7 +992,9 @@ function buildFullLocationPath(locationInfo) {
     }
   }
 
-  return parts.length > 0 ? parts.join(" ") : null;
+  const fullPath = parts.length > 0 ? parts.join(" ") : null;
+
+  return fullPath;
 }
 
 /**
@@ -1494,12 +1497,17 @@ function updatePathsStatic(targetIndex) {
   for (let i = 0; i <= targetIndex; i++) {
     const currentEvent = trajectoryData.events[i];
 
-    // 只有非原地活动才绘制路径
+    // 只要有起点和终点坐标，且不是原地活动，就绘制路径
     if (
-      currentEvent.movementType !== "原地活动" &&
       currentEvent.startCoords &&
-      currentEvent.endCoords
+      currentEvent.endCoords &&
+      currentEvent.movementType !== "原地活动"
     ) {
+      // 调试输出
+      console.log(`事件 ${i}: ${currentEvent.event}`);
+      console.log(`起点坐标:`, currentEvent.startCoords);
+      console.log(`终点坐标:`, currentEvent.endCoords);
+
       const isLatest = i === targetIndex;
       const eventPath = createAnimatedPath(
         currentEvent.startCoords,
@@ -1507,7 +1515,7 @@ function updatePathsStatic(targetIndex) {
         currentEvent.transitCoords,
         isLatest,
         i,
-        false // 事件内部路径
+        false
       );
 
       if (eventPath) {
@@ -1515,7 +1523,14 @@ function updatePathsStatic(targetIndex) {
         eventPath._initiallyHidden = false;
         eventPath.addTo(map);
         pathLayers.push(eventPath);
+        console.log(`成功添加路径: 事件 ${i}`);
+      } else {
+        console.warn(`路径创建失败: 事件 ${i}`);
       }
+    } else {
+      console.log(`跳过事件 ${i}: ${currentEvent.event} (原地活动或缺少坐标)`);
+      if (!currentEvent.startCoords) console.log(`  缺少起点坐标`);
+      if (!currentEvent.endCoords) console.log(`  缺少终点坐标`);
     }
   }
 }
@@ -1559,12 +1574,14 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
       }
     });
 
-    // 只有非原地活动才绘制路径
+    // 只要有起点和终点坐标，且不是原地活动，就绘制路径
     if (
-      currentEvent.movementType !== "原地活动" &&
       currentEvent.startCoords &&
-      currentEvent.endCoords
+      currentEvent.endCoords &&
+      currentEvent.movementType !== "原地活动"
     ) {
+      console.log(`动画添加路径: 事件 ${targetIndex} - ${currentEvent.event}`);
+
       const eventPath = createAnimatedPath(
         currentEvent.startCoords,
         currentEvent.endCoords,
@@ -1760,21 +1777,162 @@ function showEventAtIndex(index, animated = true, isUserDrag = false) {
     updatePathsStatic(index);
   }
 
-  if (event.endCoords) {
-    const [lng, lat] = event.endCoords;
+  // 镜头跟随逻辑
+  if (isCameraFollowEnabled) {
+    handleCameraFollow(event, previousEventIndex, animated);
+  }
+
+  if (animated) {
+    setTimeout(() => {
+      ensureMarkersInteractivity();
+    }, animationConfig.timelineDuration + 100);
+  }
+}
+
+// ==================== 镜头跟随控制 ====================
+/**
+ * 处理镜头跟随逻辑
+ */
+function handleCameraFollow(currentEvent, previousIndex, animated = true) {
+  if (!currentEvent) return;
+
+  const bounds = calculatePathBounds(currentEvent, previousIndex);
+  if (bounds && bounds.isValid()) {
+    const panOptions = {
+      animate: animated,
+      duration: animated ? animationConfig.pathDuration / 1000 : 0,
+      paddingTopLeft: [50, 50],
+      paddingBottomRight: [50, 100], // 为底部控制面板留出空间
+      maxZoom: 8, // 限制最大缩放级别，避免过度放大
+    };
+
+    map.fitBounds(bounds, panOptions);
+  } else if (currentEvent.endCoords) {
+    // 备用方案：直接定位到终点
+    const [lng, lat] = currentEvent.endCoords;
     const panOptions = {
       animate: animated,
       duration: animated ? animationConfig.timelineDuration / 1000 : 0,
     };
-
     map.setView([lat, lng], Math.max(map.getZoom(), 6), panOptions);
+  }
+}
 
-    if (animated) {
-      setTimeout(() => {
-        ensureMarkersInteractivity();
-      }, animationConfig.timelineDuration + 100);
+/**
+ * 计算路径边界框
+ */
+function calculatePathBounds(currentEvent, previousIndex) {
+  const coordinates = [];
+
+  // 添加上一个事件的终点作为当前路径的起点上下文
+  if (previousIndex >= 0 && trajectoryData.events[previousIndex]) {
+    const prevEvent = trajectoryData.events[previousIndex];
+    if (prevEvent.endCoords) {
+      coordinates.push([prevEvent.endCoords[1], prevEvent.endCoords[0]]);
     }
   }
+
+  // 添加当前事件的起点
+  if (currentEvent.startCoords) {
+    coordinates.push([
+      currentEvent.startCoords[1],
+      currentEvent.startCoords[0],
+    ]);
+  }
+
+  // 添加所有途径点
+  if (currentEvent.transitCoords && currentEvent.transitCoords.length > 0) {
+    currentEvent.transitCoords.forEach((coords) => {
+      if (coords && coords.length === 2) {
+        coordinates.push([coords[1], coords[0]]);
+      }
+    });
+  }
+
+  // 添加当前事件的终点
+  if (currentEvent.endCoords) {
+    coordinates.push([currentEvent.endCoords[1], currentEvent.endCoords[0]]);
+  }
+
+  // 如果只有一个坐标点，扩展边界框
+  if (coordinates.length === 1) {
+    const [lat, lng] = coordinates[0];
+    const offset = 0.1; // 经纬度偏移量
+    coordinates.push([lat + offset, lng + offset]);
+    coordinates.push([lat - offset, lng - offset]);
+  }
+
+  if (coordinates.length >= 2) {
+    try {
+      return L.latLngBounds(coordinates);
+    } catch (error) {
+      console.warn("计算边界框失败:", error);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 切换镜头跟随状态
+ */
+function toggleCameraFollow() {
+  isCameraFollowEnabled = !isCameraFollowEnabled;
+  updateCameraFollowUI();
+
+  // 保存设置到本地存储
+  try {
+    localStorage.setItem(
+      "cameraFollowEnabled",
+      isCameraFollowEnabled.toString()
+    );
+  } catch (error) {
+    console.warn("无法保存镜头跟随设置:", error);
+  }
+}
+
+/**
+ * 更新镜头跟随UI状态
+ */
+function updateCameraFollowUI() {
+  const cameraSwitch = document.getElementById("camera-follow-switch");
+  const cameraStatus = document.getElementById("camera-follow-status");
+
+  if (cameraSwitch) {
+    if (isCameraFollowEnabled) {
+      cameraSwitch.classList.add("active");
+    } else {
+      cameraSwitch.classList.remove("active");
+    }
+  }
+
+  if (cameraStatus) {
+    cameraStatus.textContent = isCameraFollowEnabled ? "开启" : "关闭";
+  }
+}
+
+/**
+ * 初始化镜头跟随控制
+ */
+function initCameraFollowControl() {
+  // 从本地存储恢复设置
+  try {
+    const saved = localStorage.getItem("cameraFollowEnabled");
+    if (saved !== null) {
+      isCameraFollowEnabled = saved === "true";
+    }
+  } catch (error) {
+    console.warn("无法读取镜头跟随设置:", error);
+  }
+
+  const cameraSwitch = document.getElementById("camera-follow-switch");
+  if (cameraSwitch) {
+    cameraSwitch.addEventListener("click", toggleCameraFollow);
+  }
+
+  // 初始化UI状态
+  updateCameraFollowUI();
 }
 
 // ==================== UI更新 ====================
@@ -2246,6 +2404,7 @@ function bindEvents() {
   initDetailPanel();
   initMobileInteractions();
   initFeedbackModal();
+  initCameraFollowControl();
 
   window.addEventListener("resize", () => {
     const mapEl = document.getElementById("map");
