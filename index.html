@@ -48,30 +48,29 @@
             动画设置
           </h5>
           <div class="animation-control">
-            <label>路径速度:</label>
+            <label>路径绘制速度:</label>
             <input
               type="range"
               id="path-duration"
               min="200"
-              max="5000"
-              value="2000"
+              max="10000"
+              value="5000"
               step="100"
             />
-            <span class="value-display" id="path-duration-display">2.0s</span>
+            <span class="value-display" id="path-duration-display">5.0s</span>
           </div>
+
           <div class="animation-control">
-            <label>时间轴速度:</label>
+            <label>镜头跟随速度:</label>
             <input
               type="range"
-              id="timeline-duration"
-              min="100"
-              max="1000"
-              value="300"
-              step="50"
+              id="camera-speed-slider"
+              min="0"
+              max="3"
+              value="1"
+              step="1"
             />
-            <span class="value-display" id="timeline-duration-display"
-              >0.3s</span
-            >
+            <span class="value-display" id="camera-speed-display">正常</span>
           </div>
         </div>
         <div class="camera-follow-control">
@@ -92,6 +91,9 @@
       >
         ⚙
       </button>
+
+      <!-- 音乐播放按钮 -->
+      <button id="music-btn" class="music-btn" title="背景音乐">🎵</button>
 
       <!-- 反馈按钮 -->
       <button id="feedback-btn" class="feedback-btn" title="意见反馈">
@@ -235,6 +237,99 @@
         </div>
       </div>
 
+      <!-- 音乐播放弹窗背景遮罩 -->
+      <div id="music-backdrop" class="music-backdrop"></div>
+
+      <!-- 音乐播放弹窗 -->
+      <div id="music-modal" class="music-modal">
+        <div class="music-modal-header">
+          <h3>🎵 背景音乐</h3>
+          <button class="music-modal-close" id="music-modal-close" title="关闭">
+            ×
+          </button>
+        </div>
+        <div class="music-modal-content">
+          <!-- 当前播放歌曲信息 -->
+          <div class="current-song-info">
+            <div class="song-title" id="current-song-title">请选择歌曲</div>
+            <div class="song-artist" id="current-song-artist">-</div>
+          </div>
+
+          <!-- 音乐播放控制 -->
+          <div class="music-controls">
+            <button
+              class="music-control-btn"
+              id="music-prev-btn"
+              title="上一首"
+            >
+              ⏮
+            </button>
+            <button
+              class="music-control-btn music-play-btn"
+              id="music-play-btn"
+              title="播放"
+            >
+              ▶
+            </button>
+            <button
+              class="music-control-btn"
+              id="music-next-btn"
+              title="下一首"
+            >
+              ⏭
+            </button>
+          </div>
+
+          <!-- 音乐进度条 -->
+          <div class="music-progress-container">
+            <div class="music-progress-bar">
+              <div class="music-progress-fill" id="music-progress-fill"></div>
+            </div>
+            <div class="music-time-info">
+              <span id="music-current-time">00:00</span>
+              <span id="music-total-time">00:00</span>
+            </div>
+          </div>
+
+          <!-- 音量控制 -->
+          <div class="music-volume-control">
+            <span class="volume-icon">🔊</span>
+            <input
+              type="range"
+              id="music-volume-slider"
+              min="0"
+              max="100"
+              value="50"
+              class="volume-slider"
+            />
+            <span class="volume-value" id="music-volume-value">50%</span>
+          </div>
+
+          <!-- 歌曲列表 -->
+          <div class="music-playlist">
+            <h4>播放列表</h4>
+            <div class="playlist-items" id="music-playlist-items"></div>
+          </div>
+
+          <!-- 本地音乐上传 -->
+          <div class="music-upload-section">
+            <h4>本地音乐</h4>
+            <div class="upload-area">
+              <input
+                type="file"
+                id="music-file-input"
+                accept="audio/*"
+                style="display: none"
+              />
+              <button class="upload-btn" id="music-upload-btn">
+                📁 选择本地音乐文件
+              </button>
+              <p class="upload-hint">支持 MP3, WAV, OGG 格式</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 反馈弹窗背景遮罩 -->
       <div id="feedback-backdrop" class="feedback-backdrop"></div>
 
@@ -307,7 +402,11 @@
       </div>
     </div>
 
+    <!-- 音频元素 -->
+    <audio id="music-audio" preload="none"></audio>
+
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/Igor-Vladyka/leaflet.motion/dist/leaflet.motion.min.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
 </html>

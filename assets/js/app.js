@@ -1,7 +1,7 @@
 /*!
  * 毛泽东生平地理轨迹可视化 - 主脚本文件
  * Author: sansan0
- * GitHub: https://github.com/sansan0
+ * GitHub: https://github.com/sansan0/mao-map
  */
 
 // ==================== 全局变量 ====================
@@ -22,23 +22,72 @@ let currentPlaySpeed = 1000;
 let isPanelVisible = true;
 let isFeedbackModalVisible = false;
 let isCameraFollowEnabled = true;
+let isDragging = false;
+
+let isPoetryAnimationPlaying = false;
+let poetryAnimationTimeout = null;
+
+let isMusicModalVisible = false;
+let currentMusicIndex = 0;
+let isMusicPlaying = false;
+let musicAudio = null;
+let musicProgressInterval = null;
+let musicVolume = 0.5;
+
+// 添加音频状态管理变量
+let audioLoadingPromise = null;
+let isAutoPlayPending = false;
+let currentAudioEventListeners = new Set();
+
+let highlightedPaths = [];
+let highlightTimeout = null;
+let currentHighlightedEventIndex = -1;
 
 let animationConfig = {
-  pathDuration: 3000,
-  timelineDuration: 500,
+  pathDuration: 5000, // 控制路径绘制速度
+  timelineDuration: 1500, // 时间轴动画时长
+  cameraFollowDuration: 2000, // 镜头跟随动画时长
+  cameraPanDuration: 1500, //镜头平移动画时长
   isAnimating: false,
+  motionOptions: {
+    auto: false, // 手动控制动画
+    easing: L.Motion.Ease.easeInOutQuart,
+  },
 };
 
+// 镜头速度档位配置
+const CAMERA_SPEED_LEVELS = [
+  {
+    name: "极快",
+    cameraFollowDuration: 600,
+    cameraPanDuration: 400,
+  },
+  {
+    name: "正常",
+    cameraFollowDuration: 2000,
+    cameraPanDuration: 1500,
+  },
+  {
+    name: "慢速",
+    cameraFollowDuration: 3500,
+    cameraPanDuration: 2800,
+  },
+  {
+    name: "极慢",
+    cameraFollowDuration: 5000,
+    cameraPanDuration: 4000,
+  },
+];
+
+let motionPaths = new Map();
+let animationQueue = [];
+let isAnimationInProgress = false;
+
 // ==================== 全局常量 ====================
-/**
- * 国际坐标数据配置
- * 统一管理所有国际地点的坐标信息，避免重复定义
- */
 const INTERNATIONAL_COORDINATES = {
   "俄罗斯 莫斯科": [37.6176, 55.7558],
 };
 
-// ==================== 设备检测 ====================
 /**
  * 检测是否为移动设备
  */
@@ -93,35 +142,6 @@ function getControlPanelHeight() {
 }
 
 /**
- * 精确调整移动端地图高度
- */
-function adjustMapHeightPrecisely() {
-  if (!isMobileDevice()) return;
-
-  const mapEl = document.getElementById("map");
-  if (!mapEl) return;
-
-  const controlPanelHeight = getControlPanelHeight();
-  const viewportHeight = window.innerHeight;
-
-  if (isPanelVisible && controlPanelHeight > 0) {
-    const mapHeight = viewportHeight - controlPanelHeight - 10;
-    mapEl.style.height = `${Math.max(mapHeight, 200)}px`;
-  } else {
-    mapEl.style.height = `${viewportHeight}px`;
-  }
-
-  setTimeout(() => {
-    if (map && map.invalidateSize) {
-      map.invalidateSize({
-        animate: true,
-        pan: false,
-      });
-    }
-  }, 100);
-}
-
-/**
  * 初始化移动端交互功能
  */
 function initMobileInteractions() {
@@ -162,9 +182,6 @@ function initPanelDragClose() {
     isProcessing: false,
   };
 
-  /**
-   * 彻底重置所有拖拽状态
-   */
   function resetAllStates(isClosing = false) {
     touchState = {
       startY: 0,
@@ -204,9 +221,6 @@ function initPanelDragClose() {
     }
   }
 
-  /**
-   * 安全关闭面板
-   */
   function safeClosePanel() {
     touchState.isProcessing = true;
 
@@ -232,9 +246,6 @@ function initPanelDragClose() {
     }, 300);
   }
 
-  /**
-   * 开始拖拽处理
-   */
   function handleTouchStart(e) {
     if (touchState.isProcessing) {
       return;
@@ -266,9 +277,6 @@ function initPanelDragClose() {
     e.preventDefault();
   }
 
-  /**
-   * 拖拽移动处理
-   */
   function handleTouchMove(e) {
     if (!touchState.isDragging || touchState.isProcessing) {
       return;
@@ -283,7 +291,6 @@ function initPanelDragClose() {
     }
 
     if (touchState.deltaY > 0) {
-      // 阻尼效果计算
       const maxDrag = 250;
       const dampingFactor = Math.max(
         0.3,
@@ -296,7 +303,6 @@ function initPanelDragClose() {
 
       panel.style.transform = `translateY(${transformValue}px)`;
 
-      // 背景透明度变化
       if (backdrop) {
         const maxOpacity = 0.3;
         const opacityReduction = (touchState.deltaY / 200) * maxOpacity;
@@ -313,9 +319,6 @@ function initPanelDragClose() {
     e.preventDefault();
   }
 
-  /**
-   * 结束拖拽处理
-   */
   function handleTouchEnd(e) {
     if (!touchState.isDragging) {
       return;
@@ -333,7 +336,6 @@ function initPanelDragClose() {
       backdrop.style.transition = "opacity 0.3s ease";
     }
 
-    // 关闭判断条件
     const shouldClose =
       touchState.hasMoved &&
       (touchState.deltaY > 40 ||
@@ -347,18 +349,12 @@ function initPanelDragClose() {
     }
   }
 
-  /**
-   * 取消拖拽处理
-   */
   function handleTouchCancel(e) {
     if (touchState.isDragging && !touchState.isProcessing) {
       resetAllStates();
     }
   }
 
-  /**
-   * 清理事件监听器
-   */
   function cleanupEventListeners() {
     panelHeader.removeEventListener("touchstart", handleTouchStart);
     panelHeader.removeEventListener("touchmove", handleTouchMove);
@@ -366,9 +362,6 @@ function initPanelDragClose() {
     panelHeader.removeEventListener("touchcancel", handleTouchCancel);
   }
 
-  /**
-   * 绑定事件监听器
-   */
   function bindEventListeners() {
     panelHeader.addEventListener("touchstart", handleTouchStart, {
       passive: false,
@@ -387,11 +380,9 @@ function initPanelDragClose() {
     });
   }
 
-  // 初始化事件监听器
   cleanupEventListeners();
   bindEventListeners();
 
-  // 防止面板内容区域干扰
   const panelContent = panel.querySelector(".panel-content");
   if (panelContent) {
     panelContent.addEventListener(
@@ -411,7 +402,6 @@ function initPanelDragClose() {
     );
   }
 
-  // 确保关闭按钮正常工作
   const closeBtn = panel.querySelector(".panel-close");
   if (closeBtn) {
     closeBtn.addEventListener(
@@ -432,7 +422,6 @@ function initPanelDragClose() {
   window.cleanupDragListeners = cleanupEventListeners;
 }
 
-// ==================== 地图初始化 ====================
 /**
  * 初始化Leaflet地图
  */
@@ -564,7 +553,6 @@ function showDetailPanel(locationGroup) {
 
   summaryEl.innerHTML = summaryText;
 
-  // 按时间顺序排序
   const sortedEvents = [...events].sort((a, b) => a.index - b.index);
 
   const eventListHtml = sortedEvents
@@ -578,10 +566,8 @@ function showDetailPanel(locationGroup) {
       let visitTypeLabel = "";
       let visitOrderClass = "";
 
-      // 左侧显示按时间顺序的次数
       const orderNumber = `第${index + 1}次`;
 
-      // 右侧显示事件类型
       switch (event.visitType) {
         case "出生":
           visitTypeClass = "birth-event";
@@ -610,7 +596,9 @@ function showDetailPanel(locationGroup) {
       }
 
       return `
-      <div class="${itemClass} ${visitTypeClass}">
+      <div class="${itemClass} ${visitTypeClass}" data-event-index="${
+        event.index
+      }">
         <div class="event-header">
           <span class="visit-order-number">${orderNumber}</span>
           <span class="event-date-item">${event.date}</span>
@@ -626,6 +614,42 @@ function showDetailPanel(locationGroup) {
     .join("");
 
   contentEl.innerHTML = eventListHtml;
+
+  const eventItems = contentEl.querySelectorAll(".event-item");
+  eventItems.forEach((item) => {
+    const eventIndex = parseInt(item.dataset.eventIndex);
+
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+
+      if (currentHighlightedEventIndex === eventIndex) {
+        clearPathHighlight();
+        return;
+      }
+
+      if (currentHighlightedEventIndex !== -1) {
+        quickClearPathHighlight();
+      }
+
+      highlightEventPath(eventIndex);
+
+      item.classList.add("event-item-clicked");
+      setTimeout(() => {
+        item.classList.remove("event-item-clicked");
+      }, 300);
+    });
+
+    item.addEventListener("mouseenter", (e) => {
+      if (currentHighlightedEventIndex !== eventIndex) {
+        item.style.cursor = "pointer";
+        item.style.transform = "translateX(2px)";
+      }
+    });
+
+    item.addEventListener("mouseleave", (e) => {
+      item.style.transform = "";
+    });
+  });
 
   if (backdrop && isMobileDevice()) {
     backdrop.classList.add("visible");
@@ -720,7 +744,6 @@ function initFeedbackModal() {
     });
   }
 
-  // ESC键关闭弹窗
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isFeedbackModalVisible) {
       hideFeedbackModal();
@@ -740,7 +763,6 @@ function showFeedbackModal() {
     feedbackModal.classList.add("visible");
     isFeedbackModalVisible = true;
 
-    // 防止页面滚动
     document.body.style.overflow = "hidden";
   }
 }
@@ -757,7 +779,6 @@ function hideFeedbackModal() {
     feedbackModal.classList.remove("visible");
     isFeedbackModalVisible = false;
 
-    // 恢复页面滚动
     document.body.style.overflow = "";
   }
 }
@@ -797,7 +818,6 @@ function handleWeChatAction() {
         showTemporaryMessage("请搜索微信公众号：" + wechatName, "info");
       });
   } else {
-    // 兼容性方案
     try {
       const textArea = document.createElement("textarea");
       textArea.value = wechatName;
@@ -863,7 +883,6 @@ function showTemporaryMessage(message, type = "info") {
 
   document.body.appendChild(messageDiv);
 
-  // 3秒后自动移除
   setTimeout(() => {
     if (messageDiv.parentNode) {
       messageDiv.style.opacity = "0";
@@ -877,6 +896,164 @@ function showTemporaryMessage(message, type = "info") {
       }, 300);
     }
   }, 3000);
+}
+
+/**
+ * 显示诗句动画消息（带状态控制）
+ */
+function showPoetryMessage() {
+  if (isPoetryAnimationPlaying) {
+    console.log("诗句动画正在播放中，忽略新的触发");
+    return;
+  }
+
+  isPoetryAnimationPlaying = true;
+  console.log("开始播放诗句动画");
+
+  if (poetryAnimationTimeout) {
+    clearTimeout(poetryAnimationTimeout);
+    poetryAnimationTimeout = null;
+  }
+
+  const existingPoetry = document.querySelector(".poetry-message");
+  if (existingPoetry) {
+    existingPoetry.remove();
+  }
+
+  const poetryDiv = document.createElement("div");
+  poetryDiv.className = "poetry-message";
+
+  const poetryTexts = [
+    "俱往矣，数风流人物，还看今朝",
+    "一万年太久，只争朝夕",
+    "雄关漫道真如铁，而今迈步从头越",
+    "江山如此多娇，引无数英雄竞折腰",
+  ];
+
+  const randomPoetry =
+    poetryTexts[Math.floor(Math.random() * poetryTexts.length)];
+  poetryDiv.textContent = randomPoetry;
+
+  Object.assign(poetryDiv.style, {
+    position: "fixed",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%) scale(0.3)",
+    background:
+      "linear-gradient(135deg, rgba(200, 16, 46, 0.95), rgba(139, 69, 19, 0.95))",
+    color: "#f4f1de",
+    padding: "24px 32px",
+    borderRadius: "16px",
+    border: "2px solid rgba(255, 215, 0, 0.6)",
+    zIndex: "9999",
+    fontSize: "18px",
+    fontWeight: "700",
+    fontFamily: "'KaiTi', '楷体', serif",
+    boxShadow:
+      "0 8px 32px rgba(200, 16, 46, 0.4), inset 0 2px 8px rgba(255, 255, 255, 0.2)",
+    backdropFilter: "blur(12px)",
+    maxWidth: "80vw",
+    textAlign: "center",
+    lineHeight: "1.6",
+    letterSpacing: "2px",
+    textShadow: "2px 2px 4px rgba(0, 0, 0, 0.6)",
+    opacity: "0",
+    pointerEvents: "none",
+    transition: "all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+  });
+
+  document.body.appendChild(poetryDiv);
+
+  requestAnimationFrame(() => {
+    poetryDiv.style.opacity = "1";
+    poetryDiv.style.transform = "translate(-50%, -50%) scale(1)";
+  });
+
+  setTimeout(() => {
+    if (poetryDiv.parentNode && isPoetryAnimationPlaying) {
+      poetryDiv.style.transform = "translate(-50%, -50%) scale(1.1)";
+      poetryDiv.style.fontSize = "20px";
+    }
+  }, 800);
+
+  // 第三阶段：放大到最大并开始淡出
+  setTimeout(() => {
+    if (poetryDiv.parentNode && isPoetryAnimationPlaying) {
+      poetryDiv.style.transform = "translate(-50%, -50%) scale(1.3)";
+      poetryDiv.style.opacity = "0.3";
+      poetryDiv.style.fontSize = "24px";
+      poetryDiv.style.filter = "blur(1px)";
+    }
+  }, 2200);
+
+  // 第四阶段：完全消失
+  setTimeout(() => {
+    if (poetryDiv.parentNode && isPoetryAnimationPlaying) {
+      poetryDiv.style.transform = "translate(-50%, -50%) scale(1.8)";
+      poetryDiv.style.opacity = "0";
+      poetryDiv.style.filter = "blur(3px)";
+
+      setTimeout(() => {
+        if (poetryDiv.parentNode) {
+          poetryDiv.remove();
+        }
+        isPoetryAnimationPlaying = false;
+        console.log("诗句动画播放完成，状态已重置");
+      }, 800);
+    } else if (!isPoetryAnimationPlaying) {
+      if (poetryDiv.parentNode) {
+        poetryDiv.remove();
+      }
+    }
+  }, 3500);
+
+  setTimeout(() => {
+    if (poetryDiv.parentNode && isPoetryAnimationPlaying) {
+      poetryDiv.style.boxShadow =
+        "0 8px 32px rgba(255, 215, 0, 0.8), inset 0 2px 8px rgba(255, 255, 255, 0.3), 0 0 20px rgba(255, 215, 0, 0.6)";
+    }
+  }, 1000);
+
+  setTimeout(() => {
+    if (poetryDiv.parentNode && isPoetryAnimationPlaying) {
+      poetryDiv.style.boxShadow =
+        "0 8px 32px rgba(200, 16, 46, 0.4), inset 0 2px 8px rgba(255, 255, 255, 0.2)";
+    }
+  }, 1800);
+
+  poetryAnimationTimeout = setTimeout(() => {
+    if (isPoetryAnimationPlaying) {
+      console.warn("诗句动画超时保护触发，强制重置状态");
+      isPoetryAnimationPlaying = false;
+
+      const remainingPoetry = document.querySelector(".poetry-message");
+      if (remainingPoetry) {
+        remainingPoetry.remove();
+      }
+    }
+    poetryAnimationTimeout = null;
+  }, 5000);
+}
+
+/**
+ * 强制停止诗句动画
+ */
+function forceStopPoetryAnimation() {
+  if (isPoetryAnimationPlaying) {
+    isPoetryAnimationPlaying = false;
+
+    if (poetryAnimationTimeout) {
+      clearTimeout(poetryAnimationTimeout);
+      poetryAnimationTimeout = null;
+    }
+
+    const poetryElements = document.querySelectorAll(".poetry-message");
+    poetryElements.forEach((element) => {
+      if (element.parentNode) {
+        element.remove();
+      }
+    });
+  }
 }
 
 // ==================== 坐标数据处理 ====================
@@ -1116,7 +1293,6 @@ function processTrajectoryData(data) {
 // ==================== 位置聚合 ====================
 /**
  * 按地理位置聚合事件
- * 统计每个地点的事件类型，包括出生、起点、终点、途径点、活动
  */
 function groupEventsByLocation(events, maxIndex) {
   const groups = new Map();
@@ -1124,7 +1300,6 @@ function groupEventsByLocation(events, maxIndex) {
   for (let i = 0; i <= maxIndex; i++) {
     const event = events[i];
 
-    // 特殊处理出生事件
     if (event.movementType === "出生") {
       if (event.endCoords && event.endLocation) {
         const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
@@ -1150,10 +1325,7 @@ function groupEventsByLocation(events, maxIndex) {
 
         group.types.add(event.movementType);
       }
-    }
-    // 特殊处理原地活动
-    else if (event.movementType === "原地活动") {
-      // 原地活动只记录一次，使用end坐标
+    } else if (event.movementType === "原地活动") {
       if (event.endCoords && event.endLocation) {
         const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
 
@@ -1179,7 +1351,6 @@ function groupEventsByLocation(events, maxIndex) {
         group.types.add(event.movementType);
       }
     } else {
-      // 处理其他类型事件的起点坐标
       if (event.startCoords && event.startLocation) {
         const coordKey = `${event.startCoords[0]},${event.startCoords[1]}`;
 
@@ -1205,7 +1376,6 @@ function groupEventsByLocation(events, maxIndex) {
         group.types.add(event.movementType);
       }
 
-      // 处理其他类型事件的目的地坐标
       if (event.endCoords && event.endLocation) {
         const coordKey = `${event.endCoords[0]},${event.endCoords[1]}`;
 
@@ -1231,7 +1401,6 @@ function groupEventsByLocation(events, maxIndex) {
         group.types.add(event.movementType);
       }
 
-      // 处理途径坐标
       if (
         event.transitCoords &&
         event.transitCoords.length > 0 &&
@@ -1289,18 +1458,6 @@ function getVisitCountClass(visitCount) {
 
 /**
  * 根据事件类型获取主要标记类型
- *
- * 类型说明：
- * - 以下5种为手动标注的movementType：出生、国际移动、长途移动、短途移动、原地活动
- * - 混合类型(marker-mixed)为程序自动判断：仅当一个地点包含多种"移动"类型时使用（不包括"原地活动"）
- *
- * 优先级策略：
- * 1. 出生事件 - 最高优先级（历史起点，唯一性）
- * 2. 国际移动 - 高优先级（跨国界移动，政治重要性）
- * 3. 长途移动 - 中高优先级（跨省级行政区移动）
- * 4. 短途移动 - 中优先级（省内移动，有地理位移）
- * 5. 原地活动 - 低优先级（无地理位置变化）
- * 6. 混合类型 - 自动判断（包含多种移动类型时显示）
  */
 function getPrimaryMarkerType(types) {
   if (types.has("出生")) return "marker-birth";
@@ -1318,7 +1475,6 @@ function getPrimaryMarkerType(types) {
 
   if (types.has("原地活动")) return "marker-activity";
 
-  // 默认类型：其他未分类的移动事件
   return "marker-movement";
 }
 
@@ -1368,7 +1524,7 @@ function createLocationMarker(
     icon: markerElement,
     interactive: true,
     keyboard: true,
-    zIndexOffset: 1000, // 确保标记在顶层
+    zIndexOffset: 1000,
   });
 
   const clickHandler = function (e) {
@@ -1416,52 +1572,84 @@ function createLocationMarker(
   return marker;
 }
 
-// ==================== 地图标记和路径 ====================
+// ==================== 地图标记和路径  ====================
 /**
- * 创建动画路径 - 支持事件内部路径和事件间连接路径
+ * 创建 motion 动画路径
  */
-function createAnimatedPath(
+function createMotionPath(
   fromCoords,
   toCoords,
   transitCoords = [],
   isLatest = false,
   eventIndex = null,
-  isConnectionPath = false
+  isConnectionPath = false,
+  isReverse = false
 ) {
   if (!fromCoords || !toCoords) return null;
 
   const pathCoords = [];
-  pathCoords.push([fromCoords[1], fromCoords[0]]);
 
-  // 只有在事件内部路径时才使用途径点
-  if (!isConnectionPath && transitCoords && transitCoords.length > 0) {
-    transitCoords.forEach((coords) => {
-      pathCoords.push([coords[1], coords[0]]);
-    });
+  if (isReverse) {
+    // 反向路径：从终点到起点
+    pathCoords.push([toCoords[1], toCoords[0]]);
+
+    // 反向添加 transit 点
+    if (!isConnectionPath && transitCoords && transitCoords.length > 0) {
+      for (let i = transitCoords.length - 1; i >= 0; i--) {
+        pathCoords.push([transitCoords[i][1], transitCoords[i][0]]);
+      }
+    }
+
+    pathCoords.push([fromCoords[1], fromCoords[0]]);
+  } else {
+    // 正向路径：从起点到终点
+    pathCoords.push([fromCoords[1], fromCoords[0]]);
+
+    if (!isConnectionPath && transitCoords && transitCoords.length > 0) {
+      transitCoords.forEach((coords) => {
+        pathCoords.push([coords[1], coords[0]]);
+      });
+    }
+
+    pathCoords.push([toCoords[1], toCoords[0]]);
   }
 
-  pathCoords.push([toCoords[1], toCoords[0]]);
-
-  const pathOptions = {
+  const polylineOptions = {
     color: isLatest ? "#c0392b" : "#85c1e9",
-    weight: isConnectionPath ? 2 : 3, // 连接路径稍细一些
+    weight: isConnectionPath ? 2 : 3,
     opacity: isLatest ? 0.9 : isConnectionPath ? 0.4 : 0.6,
     smoothFactor: 1,
-    dashArray: isConnectionPath ? "4, 8" : "8, 8", // 连接路径用不同样式
+    dashArray: isConnectionPath ? "4, 8" : "8, 8",
   };
 
-  const path = L.polyline(pathCoords, pathOptions);
-  path._isAnimated = true;
-  path._isLatest = isLatest;
-  path._needsAnimation = isLatest;
-  path._eventIndex = eventIndex;
-  path._isConnectionPath = isConnectionPath;
+  // 拖动时使用极短的动画时间，实现快速显示
+  let effectiveDuration = isDragging ? 1 : animationConfig.pathDuration;
 
-  if (isLatest) {
-    path._initiallyHidden = true;
-  }
+  const motionOptions = {
+    auto: isDragging ? true : false,
+    duration: effectiveDuration,
+    easing: isDragging
+      ? L.Motion.Ease.easeLinear || animationConfig.motionOptions.easing
+      : animationConfig.motionOptions.easing,
+  };
 
-  return path;
+  const motionPath = L.motion.polyline(
+    pathCoords,
+    polylineOptions,
+    motionOptions
+  );
+
+  // 保存路径元数据
+  motionPath._isAnimated = true;
+  motionPath._isLatest = isLatest;
+  motionPath._needsAnimation = isLatest && !isDragging;
+  motionPath._eventIndex = eventIndex;
+  motionPath._isConnectionPath = isConnectionPath;
+  motionPath._isReverse = isReverse;
+  motionPath._originalPathCoords = pathCoords;
+  motionPath._pathOptions = polylineOptions;
+
+  return motionPath;
 }
 
 /**
@@ -1491,48 +1679,114 @@ function updatePathStyle(path, isLatest) {
  * 静态更新路径（无动画）
  */
 function updatePathsStatic(targetIndex) {
-  pathLayers.forEach((path) => map.removeLayer(path));
+  pathLayers.forEach((path) => {
+    if (path._map) {
+      map.removeLayer(path);
+    }
+  });
   pathLayers = [];
+  motionPaths.clear();
 
   for (let i = 0; i <= targetIndex; i++) {
     const currentEvent = trajectoryData.events[i];
 
-    // 只要有起点和终点坐标，且不是原地活动，就绘制路径
     if (
       currentEvent.startCoords &&
       currentEvent.endCoords &&
       currentEvent.movementType !== "原地活动"
     ) {
-      // 调试输出
-      console.log(`事件 ${i}: ${currentEvent.event}`);
-      console.log(`起点坐标:`, currentEvent.startCoords);
-      console.log(`终点坐标:`, currentEvent.endCoords);
+      console.log(
+        `${isDragging ? "拖动" : "静态"}添加路径: 事件 ${i}: ${
+          currentEvent.event
+        }`
+      );
 
       const isLatest = i === targetIndex;
-      const eventPath = createAnimatedPath(
+      const motionPath = createMotionPath(
         currentEvent.startCoords,
         currentEvent.endCoords,
         currentEvent.transitCoords,
         isLatest,
         i,
+        false,
         false
       );
 
-      if (eventPath) {
-        eventPath._needsAnimation = false;
-        eventPath._initiallyHidden = false;
-        eventPath.addTo(map);
-        pathLayers.push(eventPath);
-        console.log(`成功添加路径: 事件 ${i}`);
+      if (motionPath) {
+        motionPath._needsAnimation = false;
+        motionPath._initiallyHidden = false;
+        motionPath.addTo(map);
+        pathLayers.push(motionPath);
+        motionPaths.set(i, motionPath);
+
+        // 如果是拖动状态，立即启动动画以快速显示
+        if (isDragging && motionPath.motionStart) {
+          motionPath.motionStart();
+        }
+
+        console.log(`成功添加${isDragging ? "拖动" : "静态"}路径: 事件 ${i}`);
       } else {
         console.warn(`路径创建失败: 事件 ${i}`);
       }
     } else {
       console.log(`跳过事件 ${i}: ${currentEvent.event} (原地活动或缺少坐标)`);
-      if (!currentEvent.startCoords) console.log(`  缺少起点坐标`);
-      if (!currentEvent.endCoords) console.log(`  缺少终点坐标`);
     }
   }
+}
+
+/**
+ * 创建路径消失动画
+ */
+function animatePathDisappear(path) {
+  if (!path || !path._map) return;
+
+  const pathElement = path._path;
+  if (!pathElement) {
+    map.removeLayer(path);
+    return;
+  }
+
+  const totalLength = pathElement.getTotalLength();
+
+  pathElement.style.strokeDasharray = totalLength;
+  pathElement.style.strokeDashoffset = "0";
+  pathElement.style.transition = `stroke-dashoffset ${animationConfig.pathDuration}ms ease-in-out, opacity ${animationConfig.pathDuration}ms ease-in-out`;
+
+  setTimeout(() => {
+    pathElement.style.strokeDashoffset = totalLength;
+    pathElement.style.opacity = "0";
+  }, 50);
+
+  setTimeout(() => {
+    if (path._map) {
+      map.removeLayer(path);
+    }
+  }, animationConfig.pathDuration + 100);
+}
+
+/**
+ * 批量执行路径消失动画
+ */
+function batchAnimatePathsDisappear(paths, staggerDelay = 200) {
+  if (!paths || paths.length === 0) return;
+
+  return new Promise((resolve) => {
+    let completedCount = 0;
+    const totalPaths = paths.length;
+
+    paths.forEach((path, index) => {
+      setTimeout(() => {
+        animatePathDisappear(path);
+
+        completedCount++;
+        if (completedCount === totalPaths) {
+          setTimeout(() => {
+            resolve();
+          }, animationConfig.pathDuration + 100);
+        }
+      }, index * staggerDelay);
+    });
+  });
 }
 
 /**
@@ -1540,32 +1794,35 @@ function updatePathsStatic(targetIndex) {
  */
 function updatePathsAnimated(targetIndex, isReverse = false) {
   if (isReverse) {
-    // 反向播放：移除目标索引之后的所有路径
+    // 反向动画：让后面的路径逐渐消失
     const pathsToRemove = pathLayers.filter(
       (path) => path._eventIndex > targetIndex
     );
 
     if (pathsToRemove.length > 0) {
-      pathsToRemove.forEach((pathToRemove, index) => {
-        setTimeout(() => {
-          if (pathToRemove._map) {
-            applyPathAnimation(pathToRemove, true);
+      console.log(`开始反向消失动画，移除 ${pathsToRemove.length} 条路径`);
 
-            setTimeout(() => {
-              if (pathToRemove._map) {
-                map.removeLayer(pathToRemove);
-              }
-              const pathIndex = pathLayers.indexOf(pathToRemove);
-              if (pathIndex > -1) {
-                pathLayers.splice(pathIndex, 1);
-              }
-            }, animationConfig.pathDuration);
-          }
+      pathsToRemove.forEach((path, index) => {
+        setTimeout(() => {
+          animatePathDisappear(path);
         }, index * 100);
       });
+
+      // 延迟清理路径数组和映射
+      setTimeout(() => {
+        pathsToRemove.forEach((pathToRemove) => {
+          const pathIndex = pathLayers.indexOf(pathToRemove);
+          if (pathIndex > -1) {
+            pathLayers.splice(pathIndex, 1);
+          }
+          if (motionPaths.has(pathToRemove._eventIndex)) {
+            motionPaths.delete(pathToRemove._eventIndex);
+          }
+        });
+      }, pathsToRemove.length * 200 + animationConfig.pathDuration);
     }
   } else {
-    // 正向播放：添加新的路径
+    // 正向动画：添加新路径
     const currentEvent = trajectoryData.events[targetIndex];
 
     pathLayers.forEach((path) => {
@@ -1574,106 +1831,33 @@ function updatePathsAnimated(targetIndex, isReverse = false) {
       }
     });
 
-    // 只要有起点和终点坐标，且不是原地活动，就绘制路径
     if (
       currentEvent.startCoords &&
       currentEvent.endCoords &&
       currentEvent.movementType !== "原地活动"
     ) {
-      console.log(`动画添加路径: 事件 ${targetIndex} - ${currentEvent.event}`);
+      console.log(
+        `Motion 添加路径: 事件 ${targetIndex} - ${currentEvent.event}`
+      );
 
-      const eventPath = createAnimatedPath(
+      const motionPath = createMotionPath(
         currentEvent.startCoords,
         currentEvent.endCoords,
         currentEvent.transitCoords,
         true,
         targetIndex,
+        false,
         false
       );
 
-      if (eventPath) {
-        eventPath.addTo(map);
-        pathLayers.push(eventPath);
-        applyPathAnimation(eventPath, false);
+      if (motionPath) {
+        motionPath.addTo(map);
+        pathLayers.push(motionPath);
+        motionPaths.set(targetIndex, motionPath);
+
+        motionPath.motionStart();
       }
     }
-  }
-}
-
-/**
- * 应用路径动画效果
- */
-function applyPathAnimation(path, isReverse = false) {
-  if (!path || !path._map) return;
-
-  const pathElement = path.getElement
-    ? path.getElement()
-    : path._path ||
-      path._renderer._container.querySelector(
-        `[stroke="${path.options.color}"]`
-      ) ||
-      path._renderer._container.querySelector("path:last-child");
-
-  if (pathElement) {
-    const pathLength = pathElement.getTotalLength();
-    pathElement.style.strokeDasharray = `${pathLength}`;
-    pathElement.style.strokeDashoffset = isReverse ? "0" : `${pathLength}`;
-    pathElement.style.transition = "none";
-
-    requestAnimationFrame(() => {
-      applyAnimationToElement(pathElement, isReverse);
-    });
-  } else {
-    setTimeout(() => {
-      const allPaths = path._renderer._container.querySelectorAll("path");
-      const targetPath = allPaths[allPaths.length - 1];
-      if (targetPath) {
-        const pathLength = targetPath.getTotalLength();
-        targetPath.style.strokeDasharray = `${pathLength}`;
-        targetPath.style.strokeDashoffset = isReverse ? "0" : `${pathLength}`;
-        targetPath.style.transition = "none";
-
-        requestAnimationFrame(() => {
-          applyAnimationToElement(targetPath, isReverse);
-        });
-      }
-    }, 50);
-  }
-}
-
-/**
- * 应用动画到路径元素
- */
-function applyAnimationToElement(pathElement, isReverse = false) {
-  try {
-    const pathLength = pathElement.getTotalLength();
-    const duration = animationConfig.pathDuration;
-
-    pathElement.style.strokeDasharray = `${pathLength}`;
-    pathElement.style.strokeDashoffset = isReverse ? "0" : `${pathLength}`;
-    pathElement.style.transition = "none";
-
-    pathElement.getBoundingClientRect();
-
-    pathElement.style.transition = `stroke-dashoffset ${duration}ms ease-in-out`;
-
-    requestAnimationFrame(() => {
-      if (isReverse) {
-        pathElement.style.strokeDashoffset = `${pathLength}`;
-      } else {
-        pathElement.style.strokeDashoffset = "0";
-      }
-    });
-
-    setTimeout(() => {
-      pathElement.style.strokeDasharray = "8, 8";
-      pathElement.style.strokeDashoffset = "0";
-      pathElement.style.transition = "none";
-    }, duration + 100);
-  } catch (error) {
-    console.error("路径动画执行出错:", error);
-    pathElement.style.strokeDasharray = "8, 8";
-    pathElement.style.strokeDashoffset = "0";
   }
 }
 
@@ -1705,7 +1889,6 @@ function updateEventMarkers(targetIndex) {
     }
   });
 
-  // 确保标记交互状态正确初始化
   setTimeout(() => {
     ensureMarkersInteractivity();
   }, 100);
@@ -1735,7 +1918,6 @@ function ensureMarkersInteractivity() {
     }
   });
 
-  // 强制刷新地图交互状态
   if (map && map.invalidateSize) {
     map.invalidateSize({
       animate: false,
@@ -1777,7 +1959,6 @@ function showEventAtIndex(index, animated = true, isUserDrag = false) {
     updatePathsStatic(index);
   }
 
-  // 镜头跟随逻辑
   if (isCameraFollowEnabled) {
     handleCameraFollow(event, previousEventIndex, animated);
   }
@@ -1785,7 +1966,7 @@ function showEventAtIndex(index, animated = true, isUserDrag = false) {
   if (animated) {
     setTimeout(() => {
       ensureMarkersInteractivity();
-    }, animationConfig.timelineDuration + 100);
+    }, animationConfig.pathDuration + 100);
   }
 }
 
@@ -1800,19 +1981,20 @@ function handleCameraFollow(currentEvent, previousIndex, animated = true) {
   if (bounds && bounds.isValid()) {
     const panOptions = {
       animate: animated,
-      duration: animated ? animationConfig.pathDuration / 1000 : 0,
+      duration: animated ? animationConfig.cameraFollowDuration / 1000 : 0, // 镜头时长
       paddingTopLeft: [50, 50],
-      paddingBottomRight: [50, 100], // 为底部控制面板留出空间
-      maxZoom: 8, // 限制最大缩放级别，避免过度放大
+      paddingBottomRight: [50, 100],
+      maxZoom: 8,
+      easeLinearity: 0.5,
     };
 
     map.fitBounds(bounds, panOptions);
   } else if (currentEvent.endCoords) {
-    // 备用方案：直接定位到终点
     const [lng, lat] = currentEvent.endCoords;
     const panOptions = {
       animate: animated,
-      duration: animated ? animationConfig.timelineDuration / 1000 : 0,
+      duration: animated ? animationConfig.cameraPanDuration / 1000 : 0, // 平移时长
+      easeLinearity: 0.5,
     };
     map.setView([lat, lng], Math.max(map.getZoom(), 6), panOptions);
   }
@@ -1824,7 +2006,6 @@ function handleCameraFollow(currentEvent, previousIndex, animated = true) {
 function calculatePathBounds(currentEvent, previousIndex) {
   const coordinates = [];
 
-  // 添加上一个事件的终点作为当前路径的起点上下文
   if (previousIndex >= 0 && trajectoryData.events[previousIndex]) {
     const prevEvent = trajectoryData.events[previousIndex];
     if (prevEvent.endCoords) {
@@ -1832,7 +2013,6 @@ function calculatePathBounds(currentEvent, previousIndex) {
     }
   }
 
-  // 添加当前事件的起点
   if (currentEvent.startCoords) {
     coordinates.push([
       currentEvent.startCoords[1],
@@ -1840,7 +2020,6 @@ function calculatePathBounds(currentEvent, previousIndex) {
     ]);
   }
 
-  // 添加所有途径点
   if (currentEvent.transitCoords && currentEvent.transitCoords.length > 0) {
     currentEvent.transitCoords.forEach((coords) => {
       if (coords && coords.length === 2) {
@@ -1849,15 +2028,13 @@ function calculatePathBounds(currentEvent, previousIndex) {
     });
   }
 
-  // 添加当前事件的终点
   if (currentEvent.endCoords) {
     coordinates.push([currentEvent.endCoords[1], currentEvent.endCoords[0]]);
   }
 
-  // 如果只有一个坐标点，扩展边界框
   if (coordinates.length === 1) {
     const [lat, lng] = coordinates[0];
-    const offset = 0.1; // 经纬度偏移量
+    const offset = 0.1;
     coordinates.push([lat + offset, lng + offset]);
     coordinates.push([lat - offset, lng - offset]);
   }
@@ -1881,7 +2058,6 @@ function toggleCameraFollow() {
   isCameraFollowEnabled = !isCameraFollowEnabled;
   updateCameraFollowUI();
 
-  // 保存设置到本地存储
   try {
     localStorage.setItem(
       "cameraFollowEnabled",
@@ -1916,7 +2092,6 @@ function updateCameraFollowUI() {
  * 初始化镜头跟随控制
  */
 function initCameraFollowControl() {
-  // 从本地存储恢复设置
   try {
     const saved = localStorage.getItem("cameraFollowEnabled");
     if (saved !== null) {
@@ -1931,8 +2106,133 @@ function initCameraFollowControl() {
     cameraSwitch.addEventListener("click", toggleCameraFollow);
   }
 
-  // 初始化UI状态
   updateCameraFollowUI();
+}
+
+// ==================== 路径高亮功能 ====================
+/**
+ * 高亮指定事件的路径
+ */
+function highlightEventPath(eventIndex) {
+  if (
+    !trajectoryData ||
+    eventIndex < 0 ||
+    eventIndex >= trajectoryData.events.length
+  ) {
+    return;
+  }
+
+  clearPathHighlight();
+
+  const motionPath = motionPaths.get(eventIndex);
+
+  if (motionPath && motionPath._map) {
+    const originalStyle = {
+      color: motionPath.options.color,
+      weight: motionPath.options.weight,
+      opacity: motionPath.options.opacity,
+      dashArray: motionPath.options.dashArray,
+    };
+
+    motionPath.setStyle({
+      color: "#e74c3c",
+      weight: 5,
+      opacity: 0.9,
+      dashArray: "10, 0",
+    });
+
+    motionPath.motionStart();
+
+    highlightedPaths.push({
+      path: motionPath,
+      originalStyle: originalStyle,
+    });
+
+    currentHighlightedEventIndex = eventIndex;
+
+    if (highlightTimeout) {
+      clearTimeout(highlightTimeout);
+    }
+
+    highlightTimeout = setTimeout(() => {
+      clearPathHighlight();
+    }, 4000);
+
+    // 聚焦到路径
+    if (motionPath.getBounds && isCameraFollowEnabled) {
+      try {
+        const bounds = motionPath.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, {
+            padding: [50, 50],
+            maxZoom: 8,
+            animate: true,
+            duration: animationConfig.cameraFollowDuration / 1000, // 镜头时长
+            easeLinearity: 0.5,
+          });
+        }
+      } catch (error) {
+        console.warn("聚焦路径失败:", error);
+      }
+    }
+  }
+}
+
+/**
+ * 清除路径高亮
+ */
+function clearPathHighlight() {
+  if (highlightTimeout) {
+    clearTimeout(highlightTimeout);
+    highlightTimeout = null;
+  }
+
+  highlightedPaths.forEach(({ path, originalStyle }) => {
+    if (path && path._map) {
+      try {
+        path.setStyle(originalStyle);
+        path.motionStart();
+      } catch (error) {
+        console.warn("恢复路径样式失败:", error);
+      }
+    }
+  });
+
+  highlightedPaths = [];
+  currentHighlightedEventIndex = -1;
+}
+
+/**
+ * 快速清除路径高亮
+ */
+function quickClearPathHighlight() {
+  if (highlightTimeout) {
+    clearTimeout(highlightTimeout);
+    highlightTimeout = null;
+  }
+
+  highlightedPaths.forEach(({ path, originalStyle }) => {
+    if (path && path._map) {
+      try {
+        path.setStyle({
+          ...originalStyle,
+          opacity: originalStyle.opacity * 0.3,
+        });
+
+        setTimeout(() => {
+          if (path && path._map) {
+            path.setStyle(originalStyle);
+            path.motionStart();
+          }
+        }, 200);
+      } catch (error) {
+        console.warn("快速清除路径高亮失败:", error);
+      }
+    }
+  });
+
+  highlightedPaths = [];
+  currentHighlightedEventIndex = -1;
 }
 
 // ==================== UI更新 ====================
@@ -2065,7 +2365,10 @@ function togglePlay() {
 
   if (isPlaying) {
     isPlaying = false;
-    clearInterval(playInterval);
+    if (playInterval) {
+      clearTimeout(playInterval);
+      playInterval = null;
+    }
     btn.textContent = "▶";
     btn.title = "播放";
   } else {
@@ -2073,14 +2376,34 @@ function togglePlay() {
     btn.textContent = "⏸";
     btn.title = "暂停";
 
-    playInterval = setInterval(() => {
-      if (currentEventIndex < trajectoryData.events.length - 1) {
-        showEventAtIndex(currentEventIndex + 1, true);
-      } else {
-        togglePlay();
-      }
-    }, currentPlaySpeed);
+    playNextEvent();
   }
+}
+
+// 递归播放下一个事件
+function playNextEvent() {
+  if (!isPlaying || currentEventIndex >= trajectoryData.events.length - 1) {
+    if (currentEventIndex >= trajectoryData.events.length - 1) {
+      isPlaying = false;
+      const btn = document.getElementById("play-btn");
+      if (btn) {
+        btn.textContent = "▶";
+        btn.title = "播放";
+      }
+    }
+    return;
+  }
+
+  showEventAtIndex(currentEventIndex + 1, true);
+
+  const waitTime = Math.max(
+    currentPlaySpeed,
+    animationConfig.pathDuration + 200
+  );
+
+  playInterval = setTimeout(() => {
+    playNextEvent();
+  }, waitTime);
 }
 
 /**
@@ -2130,9 +2453,15 @@ function handleTimelineKeydown(e) {
       handled = true;
       break;
     case "End":
-      newIndex = trajectoryData.events.length - 1;
-      handled = true;
-      break;
+      // 检查是否有动画正在播放
+      if (isPoetryAnimationPlaying) {
+        e.preventDefault();
+        return;
+      }
+      // 不跳转，只显示诗句动画
+      e.preventDefault();
+      showPoetryMessage();
+      return;
     case " ":
       e.preventDefault();
       togglePlay();
@@ -2154,42 +2483,121 @@ function handleTimelineKeydown(e) {
 function initAnimationControls() {
   const pathDurationSlider = document.getElementById("path-duration");
   const pathDurationDisplay = document.getElementById("path-duration-display");
-  const timelineDurationSlider = document.getElementById("timeline-duration");
-  const timelineDurationDisplay = document.getElementById(
-    "timeline-duration-display"
-  );
+  const cameraSpeedSlider = document.getElementById("camera-speed-slider");
+  const cameraSpeedDisplay = document.getElementById("camera-speed-display");
 
   if (pathDurationSlider && pathDurationDisplay) {
-    pathDurationSlider.min = "500";
-    pathDurationSlider.max = "8000";
-    pathDurationSlider.value = "2000";
-    pathDurationSlider.step = "200";
-
-    pathDurationSlider.addEventListener("input", (e) => {
-      animationConfig.pathDuration = parseInt(e.target.value);
-      pathDurationDisplay.textContent =
-        (animationConfig.pathDuration / 1000).toFixed(1) + "s";
-    });
-
+    pathDurationSlider.value = animationConfig.pathDuration;
     pathDurationDisplay.textContent =
       (animationConfig.pathDuration / 1000).toFixed(1) + "s";
+
+    pathDurationSlider.addEventListener("input", (e) => {
+      const newDuration = parseInt(e.target.value);
+      animationConfig.pathDuration = newDuration;
+
+      if (currentPlaySpeed < newDuration) {
+        currentPlaySpeed = newDuration + 500;
+        updateSpeedUI();
+      }
+
+      pathDurationDisplay.textContent = (newDuration / 1000).toFixed(1) + "s";
+      updateAnimationDuration(newDuration);
+    });
   }
 
-  if (timelineDurationSlider && timelineDurationDisplay) {
-    timelineDurationSlider.addEventListener("input", (e) => {
-      animationConfig.timelineDuration = parseInt(e.target.value);
-      timelineDurationDisplay.textContent =
-        (animationConfig.timelineDuration / 1000).toFixed(1) + "s";
+  if (cameraSpeedSlider && cameraSpeedDisplay) {
+    // 从本地存储恢复设置
+    let savedSpeedLevel = 1;
+    try {
+      const saved = localStorage.getItem("cameraSpeedLevel");
+      if (saved !== null) {
+        savedSpeedLevel = parseInt(saved);
+        if (
+          savedSpeedLevel < 0 ||
+          savedSpeedLevel >= CAMERA_SPEED_LEVELS.length
+        ) {
+          savedSpeedLevel = 1;
+        }
+      }
+    } catch (error) {
+      console.warn("无法读取镜头速度设置:", error);
+    }
 
-      const slider = document.getElementById("timeline-slider");
-      if (slider) {
-        slider.style.transition = `all ${animationConfig.timelineDuration}ms ease`;
+    cameraSpeedSlider.value = savedSpeedLevel;
+    updateCameraSpeed(savedSpeedLevel);
+
+    cameraSpeedSlider.addEventListener("input", (e) => {
+      const levelIndex = parseInt(e.target.value);
+      updateCameraSpeed(levelIndex);
+
+      try {
+        localStorage.setItem("cameraSpeedLevel", levelIndex.toString());
+      } catch (error) {
+        console.warn("无法保存镜头速度设置:", error);
       }
     });
-
-    timelineDurationDisplay.textContent =
-      (animationConfig.timelineDuration / 1000).toFixed(1) + "s";
   }
+}
+
+/**
+ * 更新镜头速度配置
+ */
+function updateCameraSpeed(levelIndex) {
+  if (levelIndex < 0 || levelIndex >= CAMERA_SPEED_LEVELS.length) {
+    console.warn("无效的镜头速度档位:", levelIndex);
+    return;
+  }
+
+  const speedConfig = CAMERA_SPEED_LEVELS[levelIndex];
+  const cameraSpeedDisplay = document.getElementById("camera-speed-display");
+
+  animationConfig.cameraFollowDuration = speedConfig.cameraFollowDuration;
+  animationConfig.cameraPanDuration = speedConfig.cameraPanDuration;
+
+  if (cameraSpeedDisplay) {
+    cameraSpeedDisplay.textContent = speedConfig.name;
+  }
+
+  console.log(`镜头跟随速度已调整为: ${speedConfig.name}`, {
+    跟随时长: speedConfig.cameraFollowDuration + "ms",
+    平移时长: speedConfig.cameraPanDuration + "ms",
+  });
+}
+
+/**
+ * 更新动画时长配置
+ */
+function updateAnimationDuration(duration) {
+  document.documentElement.style.setProperty(
+    "--path-animation-duration",
+    duration + "ms"
+  );
+}
+
+// 更新播放速度UI
+function updateSpeedUI() {
+  const speedSelect = document.getElementById("custom-speed-select");
+  if (speedSelect) {
+    speedSelect.dataset.value = currentPlaySpeed.toString();
+    const selectText = speedSelect.querySelector(".select-text");
+    if (selectText) {
+      selectText.textContent = getSpeedLabel(currentPlaySpeed);
+    }
+  }
+}
+
+/**
+ * 获取速度标签
+ */
+function getSpeedLabel(speed) {
+  const speedLabels = {
+    500: "极快",
+    1000: "快速",
+    2000: "正常",
+    3000: "慢速",
+    5000: "极慢",
+  };
+  return speedLabels[speed] || `${speed}ms`;
 }
 
 /**
@@ -2239,11 +2647,9 @@ function copyCurrentEventData() {
           );
         })
         .catch(() => {
-          // 降级到传统复制方法
           fallbackCopyToClipboard(formattedJson);
         });
     } else {
-      // 兼容性方案
       fallbackCopyToClipboard(formattedJson);
     }
   } catch (error) {
@@ -2280,6 +2686,1095 @@ function fallbackCopyToClipboard(text) {
   }
 }
 
+/**
+ * 隐藏加载提示
+ */
+function hideLoading() {
+  const loading = document.getElementById("loading");
+  if (loading) {
+    loading.style.display = "none";
+  }
+}
+
+// ==================== 自定义下拉选择器 ====================
+/**
+ * 初始化自定义速度选择器
+ */
+function initCustomSpeedSelect() {
+  const customSelect = document.getElementById("custom-speed-select");
+  if (!customSelect) return;
+
+  const selectDisplay = customSelect.querySelector(".select-display");
+  const selectText = customSelect.querySelector(".select-text");
+  const selectDropdown = customSelect.querySelector(".select-dropdown");
+  const selectOptions = customSelect.querySelectorAll(".select-option");
+
+  let isOpen = false;
+
+  function openDropdown() {
+    if (isOpen) return;
+
+    isOpen = true;
+    customSelect.classList.add("open");
+
+    setTimeout(() => {
+      document.addEventListener("click", handleDocumentClick);
+    }, 0);
+  }
+
+  function closeDropdown() {
+    if (!isOpen) return;
+
+    isOpen = false;
+    customSelect.classList.remove("open");
+    document.removeEventListener("click", handleDocumentClick);
+  }
+
+  function handleDocumentClick(e) {
+    if (!customSelect.contains(e.target)) {
+      closeDropdown();
+    }
+  }
+
+  function toggleDropdown(e) {
+    e.stopPropagation();
+    if (isOpen) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  }
+
+  function selectOption(option) {
+    const value = option.dataset.value;
+    const text = option.textContent;
+
+    selectText.textContent = text;
+
+    customSelect.dataset.value = value;
+
+    selectOptions.forEach((opt) => opt.classList.remove("selected"));
+    option.classList.add("selected");
+
+    currentPlaySpeed = parseInt(value);
+
+    if (isPlaying) {
+      togglePlay();
+      setTimeout(() => togglePlay(), 100);
+    }
+
+    closeDropdown();
+  }
+
+  if (selectDisplay) {
+    selectDisplay.addEventListener("click", toggleDropdown);
+  }
+
+  selectOptions.forEach((option) => {
+    option.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectOption(option);
+    });
+  });
+
+  customSelect.addEventListener("keydown", (e) => {
+    if (!isOpen) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+        e.preventDefault();
+        openDropdown();
+      }
+    } else {
+      switch (e.key) {
+        case "Escape":
+          e.preventDefault();
+          closeDropdown();
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          navigateOptions(-1);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          navigateOptions(1);
+          break;
+        case "Enter":
+          e.preventDefault();
+          const selectedOption = selectDropdown.querySelector(
+            ".select-option.selected"
+          );
+          if (selectedOption) {
+            selectOption(selectedOption);
+          }
+          break;
+      }
+    }
+  });
+
+  function navigateOptions(direction) {
+    const options = Array.from(selectOptions);
+    const currentIndex = options.findIndex((opt) =>
+      opt.classList.contains("selected")
+    );
+    let newIndex = currentIndex + direction;
+
+    if (newIndex < 0) newIndex = options.length - 1;
+    if (newIndex >= options.length) newIndex = 0;
+
+    options.forEach((opt) => opt.classList.remove("selected"));
+    options[newIndex].classList.add("selected");
+  }
+
+  customSelect.setAttribute("tabindex", "0");
+
+  const initialValue = customSelect.dataset.value || "1000";
+  const initialOption = customSelect.querySelector(
+    `[data-value="${initialValue}"]`
+  );
+  if (initialOption) {
+    selectText.textContent = initialOption.textContent;
+    selectOptions.forEach((opt) => opt.classList.remove("selected"));
+    initialOption.classList.add("selected");
+  }
+}
+
+// ==================== 音乐播放功能 ====================
+const MUSIC_PLAYLIST = [
+  {
+    id: "internationale",
+    title: "国际歌",
+    artist: "经典革命歌曲",
+    duration: "04:55",
+    urls: [
+      // 第二个是维基百科的公共版权音乐
+      "https://raw.githubusercontent.com/sansan0/mao-map/refs/heads/master/data/music/Internationale-cmn_(英特纳雄耐尔).ogg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/5b/Internationale-cmn_%28%E8%8B%B1%E7%89%B9%E7%BA%B3%E9%9B%84%E8%80%90%E5%B0%94%29.ogg",
+    ],
+  },
+  {
+    id: "dongfanghong",
+    title: "东方红",
+    artist: "经典红色歌曲",
+    duration: "02:25",
+    urls: [
+      "https://raw.githubusercontent.com/sansan0/mao-map/refs/heads/master/data/music/东方红_-_The_East_Is_Red_(1950).ogg",
+      "https://upload.wikimedia.org/wikipedia/commons/d/d8/%E4%B8%9C%E6%96%B9%E7%BA%A2_-_The_East_Is_Red_%281950%29.ogg",
+    ],
+  },
+];
+
+/**
+ * 清理音频事件监听器
+ */
+function cleanupMusicEventListeners() {
+  if (!musicAudio) return;
+
+  console.log("清理音频事件监听器");
+
+  const eventsToClean = [
+    "loadedmetadata",
+    "canplaythrough",
+    "error",
+    "loadstart",
+    "loadeddata",
+  ];
+
+  eventsToClean.forEach((eventType) => {
+    musicAudio.removeEventListener(eventType, () => {});
+  });
+
+  currentAudioEventListeners.clear();
+}
+
+/**
+ * 等待音频准备就绪后自动播放
+ */
+function autoPlayWhenReady(shouldPlay = true) {
+  if (!musicAudio || !shouldPlay) {
+    isAutoPlayPending = false;
+    return Promise.resolve(false);
+  }
+
+  isAutoPlayPending = true;
+
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      console.warn("音频加载超时，取消自动播放");
+      isAutoPlayPending = false;
+      cleanup();
+      resolve(false);
+    }, 10000);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      musicAudio.removeEventListener("canplaythrough", handleCanPlay);
+      musicAudio.removeEventListener("loadedmetadata", handleCanPlay);
+      musicAudio.removeEventListener("error", handleError);
+    };
+
+    const handleCanPlay = () => {
+      cleanup();
+
+      if (isAutoPlayPending) {
+        console.log("音频准备就绪，开始自动播放");
+        musicAudio
+          .play()
+          .then(() => {
+            isMusicPlaying = true;
+            startProgressUpdate();
+            updatePlayButton();
+            updateMusicBtnState();
+            isAutoPlayPending = false;
+            resolve(true);
+          })
+          .catch((error) => {
+            console.warn("自动播放失败:", error);
+            isAutoPlayPending = false;
+            updatePlayButton();
+            updateMusicBtnState();
+            resolve(false);
+          });
+      } else {
+        resolve(false);
+      }
+    };
+
+    const handleError = (error) => {
+      console.warn("音频加载出错，取消自动播放:", error);
+      cleanup();
+      isAutoPlayPending = false;
+      resolve(false);
+    };
+
+    // 检查音频是否已经可以播放
+    if (musicAudio.readyState >= 3) {
+      cleanup();
+      handleCanPlay();
+    } else {
+      musicAudio.addEventListener("canplaythrough", handleCanPlay, {
+        once: true,
+      });
+      musicAudio.addEventListener("loadedmetadata", handleCanPlay, {
+        once: true,
+      });
+      musicAudio.addEventListener("error", handleError, { once: true });
+    }
+  });
+}
+
+/**
+ * 加载音频文件
+ */
+function loadMusicAudio(song, autoPlay = false) {
+  if (!musicAudio) return Promise.resolve(false);
+
+  console.log(`加载音频: ${song.title}, 自动播放: ${autoPlay}`);
+
+  isAutoPlayPending = false;
+
+  if (isMusicPlaying) {
+    musicAudio.pause();
+    isMusicPlaying = false;
+    clearInterval(musicProgressInterval);
+  }
+
+  cleanupMusicEventListeners();
+
+  musicAudio.currentTime = 0;
+  updateMusicProgress();
+  updatePlayButton();
+  updateMusicBtnState();
+
+  let urlIndex = 0;
+
+  function tryLoadUrl() {
+    return new Promise((resolve) => {
+      if (urlIndex >= song.urls.length) {
+        console.warn("无法加载音频文件:", song.title);
+        showTemporaryMessage("无法加载音频文件，请尝试上传本地文件", "warning");
+        resolve(false);
+        return;
+      }
+
+      const url = song.urls[urlIndex];
+      console.log("尝试加载音频:", url);
+
+      const loadTimeoutId = setTimeout(() => {
+        console.warn("音频加载超时:", url);
+        handleLoadError();
+      }, 8000);
+
+      const cleanup = () => {
+        clearTimeout(loadTimeoutId);
+        musicAudio.removeEventListener("canplaythrough", handleLoadSuccess);
+        musicAudio.removeEventListener("loadedmetadata", handleLoadSuccess);
+        musicAudio.removeEventListener("error", handleLoadError);
+      };
+
+      const handleLoadSuccess = () => {
+        console.log("音频加载成功:", url);
+        cleanup();
+
+        updatePlayButton();
+        updateMusicBtnState();
+
+        if (autoPlay) {
+          autoPlayWhenReady(true).then((success) => {
+            resolve(success);
+          });
+        } else {
+          resolve(true);
+        }
+      };
+
+      const handleLoadError = () => {
+        console.warn("音频加载失败:", url);
+        cleanup();
+        urlIndex++;
+        tryLoadUrl().then(resolve);
+      };
+
+      musicAudio.addEventListener("canplaythrough", handleLoadSuccess, {
+        once: true,
+      });
+      musicAudio.addEventListener("loadedmetadata", handleLoadSuccess, {
+        once: true,
+      });
+      musicAudio.addEventListener("error", handleLoadError, { once: true });
+
+      musicAudio.src = url;
+      musicAudio.volume = musicVolume;
+      musicAudio.load();
+    });
+  }
+
+  audioLoadingPromise = tryLoadUrl();
+  return audioLoadingPromise;
+}
+
+/**
+ * 播放上一首
+ */
+function playPreviousSong() {
+  const prevIndex =
+    currentMusicIndex > 0 ? currentMusicIndex - 1 : MUSIC_PLAYLIST.length - 1;
+  const wasPlaying = isMusicPlaying;
+
+  console.log(`播放上一首: 索引 ${prevIndex}, 之前在播放: ${wasPlaying}`);
+
+  selectSong(prevIndex, wasPlaying);
+}
+
+/**
+ * 播放下一首
+ */
+function playNextSong() {
+  const nextIndex =
+    currentMusicIndex < MUSIC_PLAYLIST.length - 1 ? currentMusicIndex + 1 : 0;
+  const wasPlaying = isMusicPlaying;
+
+  console.log(`播放下一首: 索引 ${nextIndex}, 之前在播放: ${wasPlaying}`);
+
+  selectSong(nextIndex, wasPlaying);
+}
+
+/**
+ * 选择歌曲
+ */
+function selectSong(index, autoPlay = false) {
+  if (index < 0 || index >= MUSIC_PLAYLIST.length) return;
+
+  console.log(`选择歌曲: 索引 ${index}, 自动播放: ${autoPlay}`);
+
+  currentMusicIndex = index;
+  const song = MUSIC_PLAYLIST[index];
+
+  const titleEl = document.getElementById("current-song-title");
+  const artistEl = document.getElementById("current-song-artist");
+
+  if (titleEl) titleEl.textContent = song.title;
+  if (artistEl) artistEl.textContent = song.artist;
+
+  const playlistItems = document.querySelectorAll(".playlist-item");
+  playlistItems.forEach((item, i) => {
+    if (i === index) {
+      item.classList.add("active");
+    } else {
+      item.classList.remove("active");
+    }
+  });
+
+  loadMusicAudio(song, autoPlay);
+}
+
+/**
+ * 切换播放/暂停
+ */
+function toggleMusicPlay() {
+  if (!musicAudio) return;
+
+  if (isMusicPlaying) {
+    console.log("暂停音乐播放");
+    musicAudio.pause();
+    isMusicPlaying = false;
+    clearInterval(musicProgressInterval);
+    updatePlayButton();
+    updateMusicBtnState();
+  } else {
+    console.log("开始音乐播放");
+    const playBtn = document.getElementById("music-play-btn");
+    if (playBtn) {
+      playBtn.textContent = "⏳";
+      playBtn.title = "加载中...";
+    }
+
+    if (musicAudio.readyState < 3) {
+      console.log("音频未准备好，等待加载...");
+      autoPlayWhenReady(true);
+    } else {
+      console.log("音频已准备好，直接播放");
+      musicAudio
+        .play()
+        .then(() => {
+          isMusicPlaying = true;
+          startProgressUpdate();
+          updatePlayButton();
+          updateMusicBtnState();
+        })
+        .catch((error) => {
+          console.error("音频播放失败:", error);
+          showTemporaryMessage("音频播放失败，请检查文件格式", "warning");
+
+          isMusicPlaying = false;
+          updatePlayButton();
+          updateMusicBtnState();
+        });
+    }
+  }
+}
+
+/**
+ * 处理音乐播放结束
+ */
+function handleMusicEnded() {
+  console.log("音乐播放结束，准备播放下一首");
+
+  isMusicPlaying = false;
+  clearInterval(musicProgressInterval);
+  updatePlayButton();
+  updateMusicBtnState();
+
+  // 自动播放下一首
+  setTimeout(() => {
+    const nextIndex =
+      currentMusicIndex < MUSIC_PLAYLIST.length - 1 ? currentMusicIndex + 1 : 0;
+    selectSong(nextIndex, true);
+  }, 500);
+}
+
+/**
+ * 初始化音乐播放功能
+ */
+function initMusicPlayer() {
+  const musicBtn = document.getElementById("music-btn");
+  const musicModal = document.getElementById("music-modal");
+  const musicBackdrop = document.getElementById("music-backdrop");
+  const musicClose = document.getElementById("music-modal-close");
+  const musicAudioElement = document.getElementById("music-audio");
+
+  musicAudio = musicAudioElement;
+
+  if (musicBtn) {
+    musicBtn.addEventListener("click", showMusicModal);
+  }
+
+  if (musicClose) {
+    musicClose.addEventListener("click", hideMusicModal);
+  }
+
+  if (musicBackdrop) {
+    musicBackdrop.addEventListener("click", hideMusicModal);
+  }
+
+  if (musicModal) {
+    musicModal.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  initMusicControls();
+  initMusicPlaylist();
+  initMusicUpload();
+  initVolumeControl();
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isMusicModalVisible) {
+      hideMusicModal();
+    }
+  });
+}
+
+/**
+ * 显示音乐弹窗
+ */
+function showMusicModal() {
+  const musicModal = document.getElementById("music-modal");
+  const musicBackdrop = document.getElementById("music-backdrop");
+
+  if (musicModal && musicBackdrop) {
+    musicBackdrop.classList.add("visible");
+    musicModal.classList.add("visible");
+    isMusicModalVisible = true;
+
+    document.body.style.overflow = "hidden";
+  }
+}
+
+/**
+ * 隐藏音乐弹窗
+ */
+function hideMusicModal() {
+  const musicModal = document.getElementById("music-modal");
+  const musicBackdrop = document.getElementById("music-backdrop");
+
+  if (musicModal && musicBackdrop) {
+    musicBackdrop.classList.remove("visible");
+    musicModal.classList.remove("visible");
+    isMusicModalVisible = false;
+
+    document.body.style.overflow = "";
+  }
+}
+
+/**
+ * 初始化音乐播放控制
+ */
+function initMusicControls() {
+  const playBtn = document.getElementById("music-play-btn");
+  const prevBtn = document.getElementById("music-prev-btn");
+  const nextBtn = document.getElementById("music-next-btn");
+  const progressBar = document.querySelector(".music-progress-bar");
+
+  if (playBtn) {
+    playBtn.addEventListener("click", toggleMusicPlay);
+  }
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", playPreviousSong);
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", playNextSong);
+  }
+
+  if (progressBar) {
+    progressBar.addEventListener("click", handleProgressClick);
+  }
+
+  if (!musicAudio) {
+    musicAudio = document.getElementById("music-audio");
+  }
+
+  // 绑定基础事件监听器（这些不会被清理）
+  if (musicAudio) {
+    musicAudio.addEventListener("loadedmetadata", updateMusicDuration);
+    musicAudio.addEventListener("timeupdate", updateMusicProgress);
+    musicAudio.addEventListener("ended", handleMusicEnded);
+    musicAudio.addEventListener("error", handleMusicError);
+  }
+}
+
+/**
+ * 初始化播放列表
+ */
+function initMusicPlaylist() {
+  const playlistItems = document.getElementById("music-playlist-items");
+
+  if (!playlistItems) return;
+
+  playlistItems.innerHTML = "";
+
+  MUSIC_PLAYLIST.forEach((song, index) => {
+    const itemEl = document.createElement("div");
+    itemEl.className = "playlist-item";
+    itemEl.dataset.index = index;
+
+    itemEl.innerHTML = `
+      <div class="playlist-item-info">
+        <div class="playlist-item-title">${song.title}</div>
+        <div class="playlist-item-artist">${song.artist}</div>
+      </div>
+      <div class="playlist-item-duration">${song.duration}</div>
+    `;
+
+    itemEl.addEventListener("click", () => {
+      const wasPlaying = isMusicPlaying;
+      selectSong(index, wasPlaying); // 如果之前在播放，则自动播放新选择的歌曲
+    });
+
+    playlistItems.appendChild(itemEl);
+  });
+
+  if (MUSIC_PLAYLIST.length > 0) {
+    selectSong(0, false); // 默认选择第一首，但不自动播放
+  }
+}
+
+/**
+ * 更新播放按钮状态
+ */
+function updatePlayButton() {
+  const playBtn = document.getElementById("music-play-btn");
+  if (playBtn) {
+    if (isMusicPlaying) {
+      playBtn.textContent = "⏸";
+      playBtn.title = "暂停";
+    } else {
+      playBtn.textContent = "▶";
+      playBtn.title = "播放";
+    }
+  }
+}
+
+/**
+ * 更新音乐按钮状态
+ */
+function updateMusicBtnState() {
+  const musicBtn = document.getElementById("music-btn");
+  if (musicBtn) {
+    if (isMusicPlaying) {
+      musicBtn.classList.add("playing");
+    } else {
+      musicBtn.classList.remove("playing");
+    }
+  }
+}
+
+/**
+ * 开始进度更新
+ */
+function startProgressUpdate() {
+  musicProgressInterval = setInterval(() => {
+    updateMusicProgress();
+  }, 1000);
+}
+
+/**
+ * 更新音乐进度
+ */
+function updateMusicProgress() {
+  if (!musicAudio || !musicAudio.duration) return;
+
+  const currentTime = musicAudio.currentTime;
+  const duration = musicAudio.duration;
+  const progress = (currentTime / duration) * 100;
+
+  const progressFill = document.getElementById("music-progress-fill");
+  if (progressFill) {
+    progressFill.style.width = `${progress}%`;
+  }
+
+  const currentTimeEl = document.getElementById("music-current-time");
+  const totalTimeEl = document.getElementById("music-total-time");
+
+  if (currentTimeEl) {
+    currentTimeEl.textContent = formatTime(currentTime);
+  }
+
+  if (totalTimeEl) {
+    totalTimeEl.textContent = formatTime(duration);
+  }
+}
+
+/**
+ * 更新音乐总时长
+ */
+function updateMusicDuration() {
+  if (!musicAudio || !musicAudio.duration) return;
+
+  const totalTimeEl = document.getElementById("music-total-time");
+  if (totalTimeEl) {
+    totalTimeEl.textContent = formatTime(musicAudio.duration);
+  }
+}
+
+/**
+ * 处理进度条点击
+ */
+function handleProgressClick(e) {
+  if (!musicAudio || !musicAudio.duration) return;
+
+  const progressBar = e.currentTarget;
+  const rect = progressBar.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const percentage = x / rect.width;
+  const newTime = percentage * musicAudio.duration;
+
+  musicAudio.currentTime = newTime;
+  updateMusicProgress();
+}
+
+/**
+ * 处理音频错误
+ */
+function handleMusicError(e) {
+  console.error("音频播放错误:", e);
+  showTemporaryMessage("音频播放出错，请尝试其他歌曲", "warning");
+
+  isMusicPlaying = false;
+  clearInterval(musicProgressInterval);
+  updatePlayButton();
+  updateMusicBtnState();
+}
+
+/**
+ * 格式化时间显示
+ */
+function formatTime(seconds) {
+  if (isNaN(seconds) || seconds < 0) return "00:00";
+
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+/**
+ * 初始化音量控制
+ */
+function initVolumeControl() {
+  const volumeSlider = document.getElementById("music-volume-slider");
+  const volumeValue = document.getElementById("music-volume-value");
+
+  if (volumeSlider) {
+    volumeSlider.addEventListener("input", (e) => {
+      const volume = parseInt(e.target.value) / 100;
+      setMusicVolume(volume);
+    });
+
+    volumeSlider.value = musicVolume * 100;
+  }
+
+  if (volumeValue) {
+    volumeValue.textContent = Math.round(musicVolume * 100) + "%";
+  }
+}
+
+/**
+ * 设置音乐音量
+ */
+function setMusicVolume(volume) {
+  musicVolume = Math.max(0, Math.min(1, volume));
+
+  if (musicAudio) {
+    musicAudio.volume = musicVolume;
+  }
+
+  const volumeValue = document.getElementById("music-volume-value");
+  if (volumeValue) {
+    volumeValue.textContent = Math.round(musicVolume * 100) + "%";
+  }
+
+  try {
+    localStorage.setItem("musicVolume", musicVolume.toString());
+  } catch (error) {
+    console.warn("无法保存音量设置:", error);
+  }
+}
+
+/**
+ * 初始化本地音乐上传
+ */
+function initMusicUpload() {
+  const uploadBtn = document.getElementById("music-upload-btn");
+  const fileInput = document.getElementById("music-file-input");
+
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", () => {
+      fileInput?.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener("change", handleMusicFileUpload);
+  }
+}
+
+/**
+ * 处理本地音乐文件上传
+ */
+function handleMusicFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith("audio/")) {
+    showTemporaryMessage("请选择有效的音频文件", "warning");
+    return;
+  }
+
+  const tempUrl = URL.createObjectURL(file);
+
+  const tempSong = {
+    id: "local_" + Date.now(),
+    title: file.name.replace(/\.[^/.]+$/, ""),
+    artist: "本地音乐",
+    duration: "未知",
+    urls: [tempUrl],
+    isLocal: true,
+  };
+
+  MUSIC_PLAYLIST.push(tempSong);
+
+  initMusicPlaylist();
+
+  selectSong(MUSIC_PLAYLIST.length - 1, false); // 选择新上传的歌曲，但不自动播放
+
+  showTemporaryMessage("本地音乐文件添加成功", "success");
+
+  e.target.value = "";
+}
+
+/**
+ * 从本地存储恢复音乐设置
+ */
+function restoreMusicSettings() {
+  try {
+    const savedVolume = localStorage.getItem("musicVolume");
+    if (savedVolume !== null) {
+      musicVolume = parseFloat(savedVolume);
+      setMusicVolume(musicVolume);
+    }
+  } catch (error) {
+    console.warn("无法读取音乐设置:", error);
+  }
+}
+
+// ==================== leaflet.motion 插件检查和性能优化 ====================
+/**
+ * 检查 leaflet.motion 插件是否正确加载
+ */
+function checkMotionPlugin() {
+  if (
+    typeof L.motion !== "undefined" &&
+    typeof L.motion.polyline === "function"
+  ) {
+    console.log("✅ leaflet.motion 插件加载成功");
+    return true;
+  } else {
+    console.error("❌ leaflet.motion 插件未正确加载");
+    return false;
+  }
+}
+
+/**
+ * 清理 motion 资源
+ */
+function cleanupMotionResources() {
+  const allPaths = Array.from(motionPaths.values());
+
+  if (allPaths.length > 0) {
+    batchAnimatePathsDisappear(allPaths, 100)
+      .then(() => {
+        motionPaths.clear();
+        pathLayers = [];
+        animationQueue = [];
+        isAnimationInProgress = false;
+
+        console.log("Motion 资源清理完成");
+      })
+      .catch((error) => {
+        console.warn("Motion 资源清理失败:", error);
+        motionPaths.forEach((path) => {
+          if (path && path._map) {
+            try {
+              path.motionStop();
+              map.removeLayer(path);
+            } catch (e) {
+              console.warn("强制清理路径失败:", e);
+            }
+          }
+        });
+
+        motionPaths.clear();
+        pathLayers = [];
+        animationQueue = [];
+        isAnimationInProgress = false;
+      });
+  } else {
+    motionPaths.clear();
+    animationQueue = [];
+    isAnimationInProgress = false;
+    console.log("Motion 资源清理完成");
+  }
+}
+
+/**
+ * 预加载关键路径动画
+ */
+function preloadKeyAnimations() {
+  if (!trajectoryData || !trajectoryData.events) return;
+
+  const keyEvents = trajectoryData.events.slice(
+    0,
+    Math.min(10, trajectoryData.events.length)
+  );
+
+  keyEvents.forEach((event, index) => {
+    if (
+      event.startCoords &&
+      event.endCoords &&
+      event.movementType !== "原地活动"
+    ) {
+      const preloadPath = createMotionPath(
+        event.startCoords,
+        event.endCoords,
+        event.transitCoords,
+        false,
+        index,
+        false,
+        false
+      );
+
+      if (preloadPath) {
+        preloadPath.addTo(map);
+        preloadPath.setStyle({ opacity: 0 });
+
+        setTimeout(() => {
+          if (preloadPath._map) {
+            map.removeLayer(preloadPath);
+          }
+        }, 100);
+      }
+    }
+  });
+
+  console.log("关键路径预加载完成");
+}
+
+/**
+ * 优化 motion 性能配置
+ */
+function optimizeMotionPerformance() {
+  if (!map || !map._renderer) {
+    console.warn("地图未完全初始化，跳过性能优化");
+    return;
+  }
+
+  try {
+    const renderer = map._renderer;
+    if (renderer && renderer._container) {
+      const container = renderer._container;
+
+      container.style.willChange = "transform";
+      container.style.transform = "translateZ(0)";
+      container.style.backfaceVisibility = "hidden";
+
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+            mutation.addedNodes.forEach((node) => {
+              if (node.nodeName === "path" && node.getAttribute("stroke")) {
+                node.style.willChange = "stroke-dashoffset";
+                node.style.transform = "translateZ(0)";
+              }
+            });
+          }
+        });
+      });
+
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+      });
+
+      window.motionObserver = observer;
+
+      console.log("Motion 性能优化已启用");
+    }
+  } catch (error) {
+    console.warn("Motion 性能优化失败:", error);
+  }
+}
+
+/**
+ * 动态调整 motion 参数
+ */
+function dynamicAdjustMotionParams() {
+  const pathCount = motionPaths.size;
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const isMobile = isMobileDevice();
+
+  let durationMultiplier = 1;
+
+  if (pathCount > 20) {
+    durationMultiplier = 0.7;
+  } else if (pathCount > 10) {
+    durationMultiplier = 0.85;
+  }
+
+  if (isMobile) {
+    durationMultiplier *= 0.8;
+  }
+
+  if (devicePixelRatio > 2) {
+    durationMultiplier *= 0.9;
+  }
+
+  animationConfig.pathDuration = Math.max(
+    1000,
+    animationConfig.pathDuration * durationMultiplier
+  );
+}
+
+/**
+ * 监听性能指标
+ */
+function monitorMotionPerformance() {
+  let frameCount = 0;
+  let lastTime = Date.now();
+  let isMonitoring = false;
+
+  function measureFPS() {
+    if (!isMonitoring) return;
+
+    frameCount++;
+    const currentTime = Date.now();
+
+    if (currentTime - lastTime >= 1000) {
+      const fps = frameCount;
+      frameCount = 0;
+      lastTime = currentTime;
+
+      // 如果 FPS 过低，自动调整参数
+      if (fps < 30 && motionPaths.size > 0) {
+        console.warn("Motion 性能较低，自动调整参数");
+        dynamicAdjustMotionParams();
+      }
+
+      if (motionPaths.size > 0) {
+        console.log(
+          `Motion 性能监控 - FPS: ${fps}, 路径数量: ${motionPaths.size}`
+        );
+      }
+    }
+
+    if (motionPaths.size > 0 && isMonitoring) {
+      requestAnimationFrame(measureFPS);
+    }
+  }
+
+  isMonitoring = true;
+  if (motionPaths.size > 0) {
+    requestAnimationFrame(measureFPS);
+  }
+
+  return {
+    stop: () => {
+      isMonitoring = false;
+    },
+  };
+}
+
 // ==================== 事件绑定 ====================
 /**
  * 绑定所有事件监听器
@@ -2295,19 +3790,20 @@ function bindEvents() {
 
   const slider = document.getElementById("timeline-slider");
   if (slider) {
-    let isDragging = false;
-
     slider.addEventListener("mousedown", () => {
       isDragging = true;
+      console.log("开始拖动 (mousedown)");
     });
 
     slider.addEventListener("touchstart", () => {
       isDragging = true;
+      console.log("开始拖动 (touchstart)");
     });
 
     slider.addEventListener("mouseup", () => {
       if (isDragging) {
         isDragging = false;
+        console.log("结束拖动 (mouseup)");
         const finalIndex = parseInt(slider.value);
         if (finalIndex !== currentEventIndex) {
           showEventAtIndex(finalIndex, true, true);
@@ -2318,6 +3814,7 @@ function bindEvents() {
     slider.addEventListener("touchend", () => {
       if (isDragging) {
         isDragging = false;
+        console.log("结束拖动 (touchend)");
         const finalIndex = parseInt(slider.value);
         if (finalIndex !== currentEventIndex) {
           showEventAtIndex(finalIndex, true, true);
@@ -2328,6 +3825,7 @@ function bindEvents() {
     slider.addEventListener("input", (e) => {
       if (trajectoryData) {
         const newIndex = parseInt(e.target.value);
+        console.log(`滑块输入: ${newIndex}, 拖动状态: ${isDragging}`);
 
         if (isDragging) {
           showEventAtIndex(newIndex, false, true);
@@ -2405,6 +3903,9 @@ function bindEvents() {
   initMobileInteractions();
   initFeedbackModal();
   initCameraFollowControl();
+  initMusicPlayer();
+
+  restoreMusicSettings();
 
   window.addEventListener("resize", () => {
     const mapEl = document.getElementById("map");
@@ -2424,185 +3925,30 @@ function bindEvents() {
   });
 }
 
+// ==================== 启动应用 ====================
 /**
- * 隐藏加载提示
- */
-function hideLoading() {
-  const loading = document.getElementById("loading");
-  if (loading) {
-    loading.style.display = "none";
-  }
-}
-
-// ==================== 自定义下拉选择器 ====================
-/**
- * 初始化自定义速度选择器
- */
-function initCustomSpeedSelect() {
-  const customSelect = document.getElementById("custom-speed-select");
-  if (!customSelect) return;
-
-  const selectDisplay = customSelect.querySelector(".select-display");
-  const selectText = customSelect.querySelector(".select-text");
-  const selectDropdown = customSelect.querySelector(".select-dropdown");
-  const selectOptions = customSelect.querySelectorAll(".select-option");
-
-  let isOpen = false;
-
-  /**
-   * 打开下拉菜单
-   */
-  function openDropdown() {
-    if (isOpen) return;
-
-    isOpen = true;
-    customSelect.classList.add("open");
-
-    setTimeout(() => {
-      document.addEventListener("click", handleDocumentClick);
-    }, 0);
-  }
-
-  /**
-   * 关闭下拉菜单
-   */
-  function closeDropdown() {
-    if (!isOpen) return;
-
-    isOpen = false;
-    customSelect.classList.remove("open");
-    document.removeEventListener("click", handleDocumentClick);
-  }
-
-  /**
-   * 处理文档点击事件（用于关闭下拉菜单）
-   */
-  function handleDocumentClick(e) {
-    if (!customSelect.contains(e.target)) {
-      closeDropdown();
-    }
-  }
-
-  /**
-   * 切换下拉菜单状态
-   */
-  function toggleDropdown(e) {
-    e.stopPropagation();
-    if (isOpen) {
-      closeDropdown();
-    } else {
-      openDropdown();
-    }
-  }
-
-  /**
-   * 选择选项
-   */
-  function selectOption(option) {
-    const value = option.dataset.value;
-    const text = option.textContent;
-
-    selectText.textContent = text;
-
-    customSelect.dataset.value = value;
-
-    selectOptions.forEach((opt) => opt.classList.remove("selected"));
-    option.classList.add("selected");
-
-    currentPlaySpeed = parseInt(value);
-
-    if (isPlaying) {
-      togglePlay();
-      setTimeout(() => togglePlay(), 100);
-    }
-
-    closeDropdown();
-  }
-
-  // 绑定点击事件到显示区域
-  if (selectDisplay) {
-    selectDisplay.addEventListener("click", toggleDropdown);
-  }
-
-  // 绑定点击事件到选项
-  selectOptions.forEach((option) => {
-    option.addEventListener("click", (e) => {
-      e.stopPropagation();
-      selectOption(option);
-    });
-  });
-
-  // 键盘支持
-  customSelect.addEventListener("keydown", (e) => {
-    if (!isOpen) {
-      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
-        e.preventDefault();
-        openDropdown();
-      }
-    } else {
-      switch (e.key) {
-        case "Escape":
-          e.preventDefault();
-          closeDropdown();
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          navigateOptions(-1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          navigateOptions(1);
-          break;
-        case "Enter":
-          e.preventDefault();
-          const selectedOption = selectDropdown.querySelector(
-            ".select-option.selected"
-          );
-          if (selectedOption) {
-            selectOption(selectedOption);
-          }
-          break;
-      }
-    }
-  });
-
-  /**
-   * 键盘导航选项
-   */
-  function navigateOptions(direction) {
-    const options = Array.from(selectOptions);
-    const currentIndex = options.findIndex((opt) =>
-      opt.classList.contains("selected")
-    );
-    let newIndex = currentIndex + direction;
-
-    if (newIndex < 0) newIndex = options.length - 1;
-    if (newIndex >= options.length) newIndex = 0;
-
-    options.forEach((opt) => opt.classList.remove("selected"));
-    options[newIndex].classList.add("selected");
-  }
-
-  customSelect.setAttribute("tabindex", "0");
-
-  const initialValue = customSelect.dataset.value || "1000";
-  const initialOption = customSelect.querySelector(
-    `[data-value="${initialValue}"]`
-  );
-  if (initialOption) {
-    selectText.textContent = initialOption.textContent;
-    selectOptions.forEach((opt) => opt.classList.remove("selected"));
-    initialOption.classList.add("selected");
-  }
-}
-
-// ==================== 应用初始化 ====================
-/**
- * 初始化应用
+ * 修改初始化应用函数，添加插件检查
  */
 async function initApp() {
   try {
     initMap();
+
+    const motionLoaded = checkMotionPlugin();
+    if (!motionLoaded) {
+      throw new Error(
+        "leaflet.motion 插件未正确加载，请确保已正确引入插件文件"
+      );
+    }
+
+    // 等待地图完全加载
+    await new Promise((resolve) => {
+      if (map._loaded) {
+        resolve();
+      } else {
+        map.on("load", resolve);
+        setTimeout(resolve, 2000);
+      }
+    });
 
     const geoDataLoaded = await loadGeographicData();
     if (!geoDataLoaded) {
@@ -2627,6 +3973,17 @@ async function initApp() {
 
       updateStatistics();
       showEventAtIndex(0, false);
+
+      setTimeout(() => {
+        optimizeMotionPerformance();
+
+        if (motionLoaded) {
+          preloadKeyAnimations();
+        }
+
+        const performanceMonitor = monitorMotionPerformance();
+        window.motionPerformanceMonitor = performanceMonitor;
+      }, 1500);
     } else {
       throw new Error("轨迹数据为空");
     }
@@ -2638,8 +3995,33 @@ async function initApp() {
     if (isMobileDevice()) {
       mapEl.classList.add("panel-visible");
     }
+
+    window.addEventListener("beforeunload", () => {
+      forceStopPoetryAnimation();
+
+      cleanupMotionResources();
+      if (window.motionObserver) {
+        window.motionObserver.disconnect();
+      }
+      if (window.motionPerformanceMonitor) {
+        window.motionPerformanceMonitor.stop();
+      }
+    });
+
+    console.log("leaflet.motion 插件状态:", motionLoaded ? "已加载" : "未加载");
   } catch (error) {
     console.error("应用初始化失败:", error);
+
+    const loading = document.getElementById("loading");
+    if (loading) {
+      loading.innerHTML = `
+        <div class="error">
+          <h3>加载失败</h3>
+          <p>应用初始化时出现错误，请刷新页面重试。</p>
+          <p>错误信息: ${error.message}</p>
+        </div>
+      `;
+    }
   }
 }
 

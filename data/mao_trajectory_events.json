@@ -373,12 +373,12 @@
     {
       "date": "1920-09-03",
       "age": 26,
-      "movementType": "长途移动",
+      "movementType": "原地活动",
       "event": "在《大公报》发表《湖南建设问题的根本问题——湖南共和国》",
       "coordinates": {
         "start": {
-          "province": "上海市",
-          "city": "上海市"
+          "province": "湖南省",
+          "city": "长沙市"
         },
         "end": {
           "province": "湖南省",
@@ -416,7 +416,8 @@
         },
         "end": {
           "province": "上海市",
-          "city": "上海市"
+          "city": "上海市",
+          "district": "徐汇区"
         }
       },
       "verification": ""
@@ -424,13 +425,13 @@
     {
       "date": "1921-08-03",
       "age": 27,
-      "movementType": "短途移动",
+      "movementType": "长途移动",
       "event": "中共一大在南湖游船上闭幕，中国共产党正式成立",
       "coordinates": {
         "start": {
           "province": "上海市",
           "city": "上海市",
-          "district": "黄浦区"
+          "district": "徐汇区"
         },
         "end": {
           "province": "浙江省",
@@ -443,12 +444,12 @@
     {
       "date": "1921-10-10",
       "age": 27,
-      "movementType": "长途移动",
+      "movementType": "原地活动",
       "event": "发起成立中共湖南支部并任书记",
       "coordinates": {
         "start": {
-          "province": "浙江省",
-          "city": "嘉兴市"
+          "province": "湖南省",
+          "city": "长沙市"
         },
         "end": {
           "province": "湖南省",
@@ -460,7 +461,7 @@
     {
       "date": "1922-09",
       "age": 28,
-      "movementType": "长途移动",
+      "movementType": "原地活动",
       "event": "在第一次国共合作中加入中国国民党",
       "coordinates": {
         "start": {
@@ -468,8 +469,8 @@
           "city": "长沙市"
         },
         "end": {
-          "province": "广东省",
-          "city": "广州市"
+          "province": "湖南省",
+          "city": "长沙市"
         }
       },
       "verification": ""
@@ -477,12 +478,12 @@
     {
       "date": "1923-06-12",
       "age": 29,
-      "movementType": "原地活动",
+      "movementType": "长途移动",
       "event": "出席中共三大，当选为中央执行委员",
       "coordinates": {
         "start": {
-          "province": "广东省",
-          "city": "广州市"
+          "province": "湖南省",
+          "city": "长沙市"
         },
         "end": {
           "province": "广东省",
@@ -941,8 +942,7 @@
       "coordinates": {
         "start": {
           "province": "贵州省",
-          "city": "遵义市",
-          "district": "遵义县"
+          "city": "遵义市"
         },
         "end": {
           "province": "贵州省",
@@ -1044,11 +1044,11 @@
           {
             "province": "贵州省",
             "city": "遵义市",
-            "district": "遵义县"
+            "district": "播州区"
           },
           {
             "province": "贵州省",
-            "city": "遵义市",
+            "city": "贵阳市",
             "district": "乌当区"
           }
         ]
@@ -1385,7 +1385,7 @@
         },
         "end": {
           "province": "重庆市",
-          "city": "重庆市"
+          "city": "渝中区"
         }
       },
       "verification": ""
@@ -1398,11 +1398,11 @@
       "coordinates": {
         "start": {
           "province": "重庆市",
-          "city": "重庆市"
+          "city": "渝中区"
         },
         "end": {
           "province": "重庆市",
-          "city": "重庆市"
+          "city": "渝中区"
         }
       },
       "verification": ""
@@ -1415,10 +1415,10 @@
       "coordinates": {
         "start": {
           "province": "重庆市",
-          "city": "重庆市"
+          "city": "渝中区"
         },
         "end": {
-          "province": "陕西省",
+          "province": "陕北省",
           "city": "延安市"
         }
       },
