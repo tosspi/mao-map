@@ -2923,6 +2923,7 @@ function autoPlayWhenReady(shouldPlay = true) {
             startProgressUpdate();
             updatePlayButton();
             updateMusicBtnState();
+            updateTimelineControlBackground();
             isAutoPlayPending = false;
             resolve(true);
           })
@@ -2931,6 +2932,7 @@ function autoPlayWhenReady(shouldPlay = true) {
             isAutoPlayPending = false;
             updatePlayButton();
             updateMusicBtnState();
+            updateTimelineControlBackground();
             resolve(false);
           });
       } else {
@@ -3119,6 +3121,7 @@ function toggleMusicPlay() {
     clearInterval(musicProgressInterval);
     updatePlayButton();
     updateMusicBtnState();
+    updateTimelineControlBackground();
   } else {
     console.log("开始音乐播放");
     const playBtn = document.getElementById("music-play-btn");
@@ -3139,6 +3142,7 @@ function toggleMusicPlay() {
           startProgressUpdate();
           updatePlayButton();
           updateMusicBtnState();
+          updateTimelineControlBackground(); 
         })
         .catch((error) => {
           console.error("音频播放失败:", error);
@@ -3162,6 +3166,7 @@ function handleMusicEnded() {
   clearInterval(musicProgressInterval);
   updatePlayButton();
   updateMusicBtnState();
+  updateTimelineControlBackground();
 
   // 自动播放下一首
   setTimeout(() => {
@@ -3424,6 +3429,7 @@ function handleMusicError(e) {
   clearInterval(musicProgressInterval);
   updatePlayButton();
   updateMusicBtnState();
+  updateTimelineControlBackground(); 
 }
 
 /**
@@ -3546,6 +3552,21 @@ function restoreMusicSettings() {
     }
   } catch (error) {
     console.warn("无法读取音乐设置:", error);
+  }
+}
+
+/**
+ * 更新时间轴控制面板背景色
+ */
+function updateTimelineControlBackground() {
+  const timelineControl = document.getElementById('timeline-control');
+  
+  if (timelineControl) {
+    if (isMusicPlaying) {
+      timelineControl.classList.add('music-playing');
+    } else {
+      timelineControl.classList.remove('music-playing');
+    }
   }
 }
 

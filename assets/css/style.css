@@ -413,7 +413,11 @@ body {
     width: 85%;
     border: 1px solid rgba(255, 255, 255, 0.2);
     min-height: 120px;
-    transition: transform 0.3s ease;
+    transition: transform 1s ease, background 1s ease;
+}
+
+#timeline-control.music-playing {
+    background: rgba(200, 16, 46, 0.2);
 }
 
 #timeline-control.hidden {
@@ -2260,7 +2264,12 @@ body {
         width: 100%;
         border-radius: 0;
         transform: none;
-        transition: transform 0.3s ease;
+        transition: transform 0.3s ease, background 0.8s ease;
+    }
+
+
+    #timeline-control.music-playing {
+        background: rgba(200, 16, 46, 0.2);
     }
 
     #timeline-control.hidden {
