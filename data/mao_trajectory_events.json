@@ -1385,7 +1385,8 @@
         },
         "end": {
           "province": "重庆市",
-          "city": "渝中区"
+          "city": "重庆城区",
+          "district": "渝中区"
         }
       },
       "verification": ""
@@ -1398,11 +1399,13 @@
       "coordinates": {
         "start": {
           "province": "重庆市",
-          "city": "渝中区"
+          "city": "重庆城区",
+          "district": "渝中区"
         },
         "end": {
           "province": "重庆市",
-          "city": "渝中区"
+          "city": "重庆城区",
+          "district": "渝中区"
         }
       },
       "verification": ""
@@ -1415,7 +1418,8 @@
       "coordinates": {
         "start": {
           "province": "重庆市",
-          "city": "渝中区"
+          "city": "重庆城区",
+          "district": "渝中区"
         },
         "end": {
           "province": "陕北省",

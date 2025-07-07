@@ -51,9 +51,25 @@
 
 ## 💖 邀你共绘历史画卷
 
-这个项目不只是代码，更是一项开放的集体事业。我深信"群众的眼睛是雪亮的"，一个严谨、准确、全面的历史数据库，需要依靠每一位热爱历史的朋友共同创建。
-
 无论你是发现了一个错误日期，还是想补充一段被遗漏的足迹，你的每一次贡献，都在让这张历史画卷更加完整、生动。
+
+感谢以下朋友为项目的完善做出贡献：
+
+<div align="center">
+
+<a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
+  <img src="https://github.com/troilus.png?size=64" width="64" style="border-radius: 50%;"/>
+  <br/>
+  <sub>@troilus</sub>
+</a>
+
+<a href="https://github.com/sansan0/mao-map/issues?q=author:9E307">
+  <img src="https://github.com/9E307.png?size=64" width="64" style="border-radius: 50%;"/>
+  <br/>
+  <sub>@9E307</sub>
+</a>
+
+</div>
 
 ### 贡献方式
 
@@ -61,10 +77,10 @@
 
 **使用方法**：
 
-1. 打开 [在线地图](https://sansan0.github.io/mao-map/)
+1. 浏览器打开 [在线地图](https://sansan0.github.io/mao-map/)
 2. 拖动底部时间轴到你想要校订或引用的事件位置
 3. **鼠标双击时间轴滑块**，即可自动复制该事件的完整 JSON 数据到剪贴板
-4. 粘贴到 GitHub Issues 中作为修改参考
+4. 粘贴到 GitHub Issues 中，也方便我定位数据问题
 
 #### 方式一：提交"信息卡片" (推荐，无需编程)
 
@@ -386,22 +402,6 @@
 - **交流与讨论**：欢迎关注公众号 **【硅基茶水间】**，分享你的想法。
 
 ![公众号二维码](https://raw.githubusercontent.com/sansan0/sansan0/refs/heads/master/_image/weixin.png)
-
-## 🙏 贡献者感谢
-
-感谢以下朋友为项目的完善做出贡献：
-
-<div align="center">
-
-**历史数据完善贡献者**
-
-<a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
-  <img src="https://github.com/troilus.png?size=64" width="64" style="border-radius: 50%;"/>
-  <br/>
-  <sub>@troilus</sub>
-</a>
-
-</div>
 
 ## 🌟 项目愿景
 
