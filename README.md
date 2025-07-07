@@ -56,21 +56,23 @@
 感谢以下朋友为项目的完善做出贡献：
 
 <div align="center">
-
-<a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
-  <img src="https://github.com/troilus.png?size=64" width="64" style="border-radius: 50%;"/>
-  <br/>
-  <sub>@troilus</sub>
-</a>
-
-<a href="https://github.com/sansan0/mao-map/issues?q=author:9E307">
-  <img src="https://github.com/9E307.png?size=64" width="64" style="border-radius: 50%;"/>
-  <br/>
-  <sub>@9E307</sub>
-</a>
-
+<table>
+  <tr>
+    <td align="center" width="150">
+      <a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
+        <img src="https://github.com/troilus.png?size=64" width="64"/><br/>
+        <sub>@troilus</sub>
+      </a>
+    </td>
+    <td align="center" width="150">
+      <a href="https://github.com/sansan0/mao-map/issues?q=author:9E307">
+        <img src="https://github.com/9E307.png?size=64" width="64"/><br/>
+        <sub>@9E307</sub>
+      </a>
+    </td>
+  </tr>
+</table>
 </div>
-
 ### 贡献方式
 
 为了让大家更方便地提交准确的校订建议，我在地图中内置了一个小工具：
