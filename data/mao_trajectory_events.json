@@ -1289,6 +1289,30 @@
       "verification": ""
     },
     {
+      "date": "1939-10-04",
+      "age": 45,
+      "movementType": "原地活动",
+      "event": "发表《共产党人》发刊词，指出统一战线、武装斗争、党的建设是中国共产党在中国革命中战胜敌人的三个法宝",
+      "coordinates": {
+        "start": {
+          "province": "陕西省",
+          "city": "延安市"
+        },
+        "end": {
+          "province": "陕西省",
+          "city": "延安市"
+        }
+      },
+      "verification": "https://www.12371.cn/2021/09/27/ARTI1632747810006980.shtml 共产党员网",
+      "userVerification": [
+        {
+          "username": "@DoWhat6",
+          "comment": "",
+          "date": "2025-07-11"
+        }
+      ]
+    },
+    {
       "date": "1940-01-09",
       "age": 46,
       "movementType": "原地活动",

@@ -1555,12 +1555,20 @@ function createLocationMarker(
   } else {
     const transitCount = events.filter((e) => e.visitType === "途径").length;
     const destCount = events.filter((e) => e.visitType === "目的地").length;
+    const startCount = events.filter((e) => e.visitType === "起点").length;
+    const activityCount = events.filter((e) => e.visitType === "活动").length;
+    const birthCount = events.filter((e) => e.visitType === "出生").length;
 
-    let desc = [];
-    if (destCount > 0) desc.push(`${destCount}次到达`);
-    if (transitCount > 0) desc.push(`${transitCount}次途径`);
+    let descParts = [];
+    if (birthCount > 0) descParts.push(`${birthCount}次出生`);
+    if (destCount > 0) descParts.push(`${destCount}次到达`);
+    if (startCount > 0) descParts.push(`${startCount}次出发`);
+    if (transitCount > 0) descParts.push(`${transitCount}次途径`);
+    if (activityCount > 0) descParts.push(`${activityCount}次活动`);
 
-    tooltipText = `${location} (${desc.join("，")})`;
+    tooltipText = `${location} (${descParts.join(
+      "，"
+    )})`;
   }
 
   marker.bindTooltip(tooltipText, {
@@ -3142,7 +3150,7 @@ function toggleMusicPlay() {
           startProgressUpdate();
           updatePlayButton();
           updateMusicBtnState();
-          updateTimelineControlBackground(); 
+          updateTimelineControlBackground();
         })
         .catch((error) => {
           console.error("音频播放失败:", error);
@@ -3429,7 +3437,7 @@ function handleMusicError(e) {
   clearInterval(musicProgressInterval);
   updatePlayButton();
   updateMusicBtnState();
-  updateTimelineControlBackground(); 
+  updateTimelineControlBackground();
 }
 
 /**
@@ -3559,13 +3567,13 @@ function restoreMusicSettings() {
  * 更新时间轴控制面板背景色
  */
 function updateTimelineControlBackground() {
-  const timelineControl = document.getElementById('timeline-control');
-  
+  const timelineControl = document.getElementById("timeline-control");
+
   if (timelineControl) {
     if (isMusicPlaying) {
-      timelineControl.classList.add('music-playing');
+      timelineControl.classList.add("music-playing");
     } else {
-      timelineControl.classList.remove('music-playing');
+      timelineControl.classList.remove("music-playing");
     }
   }
 }

@@ -2,9 +2,6 @@
 
 # 📍 跟着教员走遍中国 - 毛主席足迹地图
 
-[![GitHub Stars](https://img.shields.io/github/stars/sansan0/mao-map?style=flat-square&logo=github&color=yellow)](https://github.com/sansan0/mao-map/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/sansan0/mao-map?style=flat-square&logo=github&color=blue)](https://github.com/sansan0/mao-map/network/members)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
 
 [![PC端访问](https://img.shields.io/badge/PC端-支持-4285F4?style=flat-square&logo=windows&logoColor=white)](#)
 [![移动端访问](https://img.shields.io/badge/移动端-支持-4285F4?style=flat-square&logo=android&logoColor=white)](#)
@@ -18,11 +15,57 @@
 
 让我们共同追随伟人的脚步，触摸那段改变中国命运的历史脉搏。
 
+项目自带背景音乐，点击播放浏览更佳。
+
 **在线体验：[https://sansan0.github.io/mao-map/](https://sansan0.github.io/mao-map/)**
 
 <p align="center">
   <img src="docs/images/image.png" alt="电脑效果" />
 </p>
+
+## 💖 邀你共绘历史画卷
+
+无论你是发现了一个错误日期，还是想补充一段被遗漏的足迹，你的每一次贡献，都在让这张历史画卷更加完整、生动。
+
+感谢诸位同志为项目的完善做出的贡献：
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="150">
+      <a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
+        <img src="https://github.com/troilus.png?size=64" width="64"/><br/>
+        <sub>@troilus</sub>
+      </a>
+    </td>
+    <td align="center" width="150">
+      <a href="https://github.com/sansan0/mao-map/issues?q=author:9E307">
+        <img src="https://github.com/9E307.png?size=64" width="64"/><br/>
+        <sub>@9E307</sub>
+      </a>
+    </td>
+    <td align="center" width="150">
+      <a href="https://github.com/sansan0/mao-map/issues?q=author:DoWhat6">
+        <img src="https://github.com/DoWhat6.png?size=64" width="64"/><br/>
+        <sub>@DoWhat6</sub>
+      </a>
+    </td>
+  </tr>
+</table>
+</div>
+
+每个考据者都可以在自己的考据中留下你对该事件的 comment, 你可以在 issues 中提交，由项目作者进行录入，以后考据的人多了，评论多了，我会做成弹幕在地图上滚动
+
+```
+  "userVerification": [
+    // 支持多人协同考据
+    {
+      "username": "湘江史话", // 考据者署名 (可选)
+      "comment": "一个注定将改变中华民族命运的伟人在韶山冲的农家小院中诞生。此时的中国正值内忧外患，列强瓜分，民族危亡之际。这个婴儿的啼哭声，仿佛是历史的回响，预示着一个新时代的到来。从韶山走向天安门，从农家子弟到开国领袖，毛泽东的一生将与中国人民的解放事业紧密相连，书写出波澜壮阔的历史篇章。", // 考据补充或感言 (可选)
+      "date": "2025-06-30" // 考据日期 (可选)
+    }
+  ]
+```
 
 ## 🎯 核心功能
 
@@ -48,31 +91,6 @@
 - **空格键**：播放 / 暂停
 - **← / →**：前一个 / 后一个事件
 - **Home / End**
-
-## 💖 邀你共绘历史画卷
-
-无论你是发现了一个错误日期，还是想补充一段被遗漏的足迹，你的每一次贡献，都在让这张历史画卷更加完整、生动。
-
-感谢以下朋友为项目的完善做出贡献：
-
-<div align="center">
-<table>
-  <tr>
-    <td align="center" width="150">
-      <a href="https://github.com/sansan0/mao-map/issues?q=author:troilus">
-        <img src="https://github.com/troilus.png?size=64" width="64"/><br/>
-        <sub>@troilus</sub>
-      </a>
-    </td>
-    <td align="center" width="150">
-      <a href="https://github.com/sansan0/mao-map/issues?q=author:9E307">
-        <img src="https://github.com/9E307.png?size=64" width="64"/><br/>
-        <sub>@9E307</sub>
-      </a>
-    </td>
-  </tr>
-</table>
-</div>
 
 ### 贡献方式
 
