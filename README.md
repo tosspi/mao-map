@@ -2,7 +2,6 @@
 
 # 📍 跟着教员走遍中国 - 毛主席足迹地图
 
-
 [![PC端访问](https://img.shields.io/badge/PC端-支持-4285F4?style=flat-square&logo=windows&logoColor=white)](#)
 [![移动端访问](https://img.shields.io/badge/移动端-支持-4285F4?style=flat-square&logo=android&logoColor=white)](#)
 [![GitHub Pages](https://img.shields.io/badge/GitHub_Pages-在线访问-4285F4?style=flat-square&logo=github&logoColor=white)](https://sansan0.github.io/mao-map)
@@ -13,19 +12,11 @@
 
 本项目通过数据可视化的力量，将毛泽东主席自 1893 年至 1976 年波澜壮阔的一生，浓缩于一张可交互的动态地图之上。让那段恢弘的历史"活"起来，清晰、生动地展现伟人在中国历史洪流中的每一个关键抉择与地理印记。
 
-让我们共同追随伟人的脚步，触摸那段改变中国命运的历史脉搏。
-
-项目自带背景音乐，点击播放浏览更佳。
-
 **在线体验：[https://sansan0.github.io/mao-map/](https://sansan0.github.io/mao-map/)**
 
-<p align="center">
-  <img src="docs/images/image.png" alt="电脑效果" />
-</p>
+## 💖 星星之火
 
-## 💖 邀你共绘历史画卷
-
-无论你是发现了一个错误日期，还是想补充一段被遗漏的足迹，你的每一次贡献，都在让这张历史画卷更加完整、生动。
+无论你是发现了一个错误日期，还是想补充一段被遗漏的足迹，你的每一次贡献，都在让历史画卷更加完整。
 
 感谢诸位同志为项目的完善做出的贡献：
 
@@ -66,6 +57,10 @@
     }
   ]
 ```
+
+<p align="center">
+  <img src="docs/images/image.png" alt="电脑效果" />
+</p>
 
 ## 🎯 核心功能
 
